@@ -11,7 +11,7 @@
 // then it's a JavaScript Module.
 const COMMONJS = ("require" in this);
 
-let components, subprocess, file, env;
+let components, subprocess, file, env, adbpure;
 if (COMMONJS) {
   components = require("chrome").components;
 } else {
@@ -25,6 +25,7 @@ if (COMMONJS) {
   subprocess = require("subprocess");
   file = require("file");
   env = require("api-utils/environment").env;
+  adbpure = require("adb-pure");
 } else {
   Cu.import("chrome://b2g-remote/content/subprocess.jsm");
   let { Loader, Require } =
@@ -161,24 +162,9 @@ this.ADB = {
         }
         debug("Didn't find ADB process running, restarting");
 
-        this.didRunInitially = true;
-        let process = Cc["@mozilla.org/process/util;1"]
-                        .createInstance(Ci.nsIProcess);
-        process.init(this._adb);
-        let params = ["start-server"];
-        let self = this;
-        process.runAsync(params, params.length, {
-          observe: function(aSubject, aTopic, aData) {
-            switch(aTopic) {
-              case "process-finished":
-                onSuccessfulStart();
-                break;
-              case "process-failed":
-                self.ready = false;
-                break;
-             }
-           }
-        }, false);
+        //this.didRunInitially = true;
+        adbpure.init();
+        adbpure.startInBackground();
       }).bind(this));
   },
 
