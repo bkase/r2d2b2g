@@ -81,7 +81,9 @@ void cleanup() {
   int i = 0;
   printf("Cleaning USB (async)\n");
   // usb_cleanup();
-  pthread_kill(*__adb_threads_active[1], SIGUSR2);
+  #ifdef __APPLE__
+    pthread_kill(*__adb_threads_active[1], SIGUSR2);
+  #endif
 
   printf("Killing threads!\n");
   for (i = 0; i < __adb_threads_active_count; i++) {
@@ -1274,6 +1276,8 @@ void * server_thread(void * args) {
   int server_port = input->server_port;
   int is_lib_call = input->is_lib_call;
 
+  free(input);
+
   if (is_lib_call) {
       char* serial = NULL;
       serial = getenv("ANDROID_SERIAL");
@@ -1446,13 +1450,13 @@ void * server_thread(void * args) {
 
 int adb_main(int is_daemon, int server_port, int is_lib_call) {
 
-  struct adb_main_input in;
-  in.is_daemon = is_daemon;
-  in.server_port = server_port;
-  in.is_lib_call = is_lib_call;
+  struct adb_main_input * in = malloc(sizeof(struct adb_main_input));
+  in->is_daemon = is_daemon;
+  in->server_port = server_port;
+  in->is_lib_call = is_lib_call;
 
   adb_thread_t * server_thread_ptr = malloc(sizeof(adb_thread_t));
-  if(adb_thread_create(server_thread_ptr, server_thread, (void*)&in)) {
+  if(adb_thread_create(server_thread_ptr, server_thread, (void*)in)) {
     printf("Error creating server thread\n");
   }
   
@@ -1819,8 +1823,12 @@ int recovery_mode = 0;
 int main(int argc, char **argv)
 {
     if (argc > 1) {
+      printf("IN HERE\n");
       if (!strcmp(argv[1], "lib")) {
         adb_main(0, 5037, 1); 
+        while (1) {
+          usleep(10000);
+        }
       }
     }
     //debugLog = fopen("/tmp/adb.log.debug", "a+");

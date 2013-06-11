@@ -5,87 +5,68 @@
 'use strict';
 
 const { Cc, Ci, Cr, Cu, ChromeWorker } = require("chrome");
-const system = require("system");
-
-const I = require("ctypes-instantiator").Instantiator();
 
 const URL_PREFIX = module.uri.replace(/adb\-pure\.js/, "");
 const WORKER_URL_SERVER = URL_PREFIX + "adb-server-thread.js";
-const WORKER_URL_TEST = URL_PREFIX + "adb-test.js";
+const EventedChromeWorker = require("evented-chrome-worker").EventedChromeWorker;
+const AdbDeviceTracker = require("adb-device-tracker").AdbDeviceTracker;
+const AdbFileTransfer = require("adb-file-transfer").AdbFileTransfer;
+const timers = require("timers");
+const URL = require("url");
+const self = require("self");
 
-Cu.import("resource://gre/modules/ctypes.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-const arch = system.architecture;
+let serverWorker;
+let adbClients;
+let libPath = URL.toFilename(self.data.url("libadb.so"));
 
-let close_cb = function() { };
-let libadb = ctypes.open("/Users/bkase/work/r2d2b2g/addon/lib/low-level/android-tools/adb/libadb.so");
-
- //let libderp = ctypes.open("/Users/bkase/work/r2d2b2g/addon/lib/derp.so");
-
-/*I.declare({ name: "spawn_thread",
-            returns: ctypes.int,
-            args: [] // is_daemon, is_server
-          }, libderp);
-
-let main = I.use("spawn_thread");*/
-
-
-  I.declare({ name: "adb_query", 
-              returns: ctypes.char.ptr, 
-              args: [ctypes.char.ptr] // service
-            }, libadb);
-
-
-/*  I.declare({ name: "adb_main",
-              returns: ctypes.int,
-              // is_daemon, is_server, is_lib_call
-              args: [ctypes.int, ctypes.int, ctypes.int]
-            }, libadb); */
-
-  I.declare({ name: "cleanup",
-              returns: ctypes.void_t,
-              args: []
-            }, libadb);
-  /*I.declare({ name: "cleanup",
-              returns: ctypes.void_t,
-              args: []
-            }, libderp);*/
- 
-
-let w = null;
 exports.startAdbInBackground = function() {
-  let serverWorker = new ChromeWorker(WORKER_URL_SERVER);
-  serverWorker.onmessage = function(e) {
-    switch(e.data.msg) {
-      case "closed": 
-        libadb.close();
-        close_cb();
-        break;
-    }
-  };
-  serverWorker.onerror = function(err) {
-    console.error(err);
-  };
-  serverWorker.postMessage({ msg: "start", port: 5037 });
-  //let main = I.use("adb_main");
+  adbClients = [];
+  serverWorker = new EventedChromeWorker(WORKER_URL_SERVER, true);
+  serverWorker.listenAndForget("log", function log(args) {
+    console.log("Server Log: " + JSON.stringify(args));
+  });
 
-  console.log("About");
-
-  //main(0, 8991, 1);
-  //startAdbEvent.run();
-  console.log("Dispatched");
-  w = serverWorker;
+  serverWorker.emit("init", { libPath: libPath }, function initack() {
+    serverWorker.emit("start", { port: 5037 }, function started(res) {
+      console.log("Started adb: " + res.result);
+    });
+  });
 };
 
-exports.getDevices = function(cb) {
-  let query = I.use("adb_query"); 
-  return query("host:devices");
+exports.trackDevices = function(cb) {
+  let adbDeviceTracker = new AdbDeviceTracker(function(data) {
+    console.log("Tracked device: " + JSON.stringify(data));
+    // at least one thing happened
+    cb();
+  });
+  adbClients.push(adbDeviceTracker);
+};
+
+exports.stopTrackingDevices = function() {
+  adbClients.forEach(function(c) c instanceof AdbDeviceTracker && c.close());
+};
+
+exports.pushFile = function(srcPath, destPath) {
+  let adbFileTransfer = new AdbFileTransfer();
+  let t = adbFileTransfer.pushFile(srcPath, destPath); 
+  return t.then(
+      function success(e) {
+        adbFileTransfer.close();
+        return e;
+      },
+      function fail(e) {
+        adbFileTransfer.close();
+      });
 };
 
 exports.close = function(cb) {
-  w.postMessage({ msg: "cleanup" });
-  close_cb = cb;
-  // libderp.close();
-  // with or without w.terminate for test case
-  //w.terminate();
+  console.log("Closing - ");
+  timers.setTimeout(function() {
+    serverWorker.emit("cleanup", null, function cleaned() {
+      serverWorker.terminate();
+      console.log("Closed successfully");
+      cb();
+    });
+  }, 100);
 };
+

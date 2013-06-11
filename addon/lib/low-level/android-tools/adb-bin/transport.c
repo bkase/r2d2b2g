@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <execinfo.h>
 
 #include "sysdeps.h"
 
@@ -33,8 +34,9 @@ static atransport transport_list = {
 };
 
 ADB_MUTEX_DEFINE( transport_lock );
+//#define ADB_TRACE_FORCE 1
 
-#if ADB_TRACE
+#if ADB_TRACE_FORCE
 #define MAX_DUMP_HEX_LEN 16
 static void  dump_hex( const unsigned char*  ptr, size_t  len )
 {
@@ -93,7 +95,7 @@ run_transport_disconnects(atransport*  t)
     }
 }
 
-#if ADB_TRACE
+#if ADB_TRACE_FORCE
 static void
 dump_packet(const char* name, const char* func, apacket* p)
 {
@@ -127,9 +129,16 @@ dump_packet(const char* name, const char* func, apacket* p)
     else
         snprintf(arg1, sizeof arg1, "0x%x", p->msg.arg1);
 
+    printf("%s: %s: [%s] arg0=%s arg1=%s (len=%d) ",
+        name, func, cmd, arg0, arg1, len);
     D("%s: %s: [%s] arg0=%s arg1=%s (len=%d) ",
         name, func, cmd, arg0, arg1, len);
     dump_hex(p->data, len);
+
+    /*void * trace[10];
+    fflush(stdout);
+    int size = backtrace(trace, 10);
+    backtrace_symbols_fd(trace, size, 1);*/
 }
 #endif /* ADB_TRACE */
 
@@ -156,10 +165,10 @@ read_packet(int  fd, const char* name, apacket** ppacket)
         }
     }
 
-#if ADB_TRACE
-    if (ADB_TRACING) {
+#if ADB_TRACE_FORCE
+    //if (ADB_TRACING) {
         dump_packet(name, "from remote", *ppacket);
-    }
+   // }
 #endif
     return 0;
 }
@@ -175,10 +184,10 @@ write_packet(int  fd, const char* name, apacket** ppacket)
         name = buff;
     }
 
-#if ADB_TRACE
-    if (ADB_TRACING) {
+#if ADB_TRACE_FORCE
+    // if (ADB_TRACING) {
         dump_packet(name, "to remote", *ppacket);
-    }
+   //  }
 #endif
     len = sizeof(ppacket);
     while(len > 0) {
@@ -416,6 +425,7 @@ device_tracker_close( asocket*  socket )
     device_tracker*  tracker = (device_tracker*) socket;
     asocket*         peer    = socket->peer;
 
+    printf("Device tracker %p removed\n", tracker);
     D( "device tracker %p removed\n", tracker);
     if (peer) {
         peer->peer = NULL;
@@ -428,6 +438,7 @@ device_tracker_close( asocket*  socket )
 static int
 device_tracker_enqueue( asocket*  socket, apacket*  p )
 {
+    printf("Device tracker enqueue\n");
     /* you can't read from a device tracker, close immediately */
     put_apacket(p);
     device_tracker_close(socket);
@@ -442,6 +453,7 @@ device_tracker_send( device_tracker*  tracker,
     apacket*  p = get_apacket();
     asocket*  peer = tracker->socket.peer;
 
+    printf("Device tracker send %p, sending: %s\n", tracker, buffer);
     memcpy(p->data, buffer, len);
     p->len = len;
     return peer->enqueue( peer, p );
@@ -452,6 +464,7 @@ static void
 device_tracker_ready( asocket*  socket )
 {
     device_tracker*  tracker = (device_tracker*) socket;
+    printf("Device tracker ready\n");
 
     /* we want to send the device list when the tracker connects
     * for the first time, even if no update occured */
@@ -474,6 +487,7 @@ create_device_tracker(void)
 
     if(tracker == 0) fatal("cannot allocate device tracker");
 
+    printf("Device tracker %p created\n", tracker);
     D( "device tracker %p created\n", tracker);
 
     tracker->socket.enqueue = device_tracker_enqueue;
@@ -1096,9 +1110,10 @@ int readx(int fd, void *ptr, size_t len)
 {
     char *p = ptr;
     int r;
-#if ADB_TRACE
+#if ADB_TRACE_FORCE
     int  len0 = len;
 #endif
+    printf("readx: fd=%d wanted=%d\n", fd, (int)len);
     D("readx: fd=%d wanted=%d\n", fd, (int)len);
     while(len > 0) {
         r = adb_read(fd, p, len);
@@ -1117,7 +1132,8 @@ int readx(int fd, void *ptr, size_t len)
         }
     }
 
-#if ADB_TRACE
+#if ADB_TRACE_FORCE
+    printf("readx: fd=%d wanted=%d got=%d\n", fd, len0, len0 - len);
     D("readx: fd=%d wanted=%d got=%d\n", fd, len0, len0 - len);
     dump_hex( ptr, len0 );
 #endif
@@ -1129,7 +1145,7 @@ int writex(int fd, const void *ptr, size_t len)
     char *p = (char*) ptr;
     int r;
 
-#if ADB_TRACE
+#if ADB_TRACE_FORCE
     D("writex: fd=%d len=%d: ", fd, (int)len);
     dump_hex( ptr, len );
 #endif

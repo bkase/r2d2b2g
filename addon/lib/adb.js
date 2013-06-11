@@ -25,7 +25,7 @@ if (COMMONJS) {
   subprocess = require("subprocess");
   file = require("file");
   env = require("api-utils/environment").env;
-  adbpure = require("adb-pure");
+  // adbpure = require("adb-pure");
 } else {
   Cu.import("chrome://b2g-remote/content/subprocess.jsm");
   let { Loader, Require } =
@@ -162,9 +162,9 @@ this.ADB = {
         }
         debug("Didn't find ADB process running, restarting");
 
-        //this.didRunInitially = true;
-        adbpure.init();
-        adbpure.startInBackground();
+        this.didRunInitially = true;
+        // adbpure.init();
+        // adbpure.startInBackground();
       }).bind(this));
   },
 
