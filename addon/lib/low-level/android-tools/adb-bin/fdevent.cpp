@@ -44,6 +44,9 @@
 // of the shell's pseudo-tty master. I.e. force close it.
 int SHELL_EXIT_NOTIFY_FD = -1;
 
+// this gets set to 1 by the JS DIE fde
+int SHOULD_DIE = 0;
+
 static void fatal(const char *fn, const char *fmt, ...)
 {
     va_list ap;
@@ -99,6 +102,7 @@ static fdevent list_pending = {
     .prev = &list_pending,
 };
 
+// TODO: where is this freed!?!?!
 static fdevent **fd_table = 0;
 static int fd_table_max = 0;
 
@@ -369,12 +373,9 @@ static void fdevent_process()
     unsigned events;
     fd_set rfd, wfd, efd;
   
-    printf("pre-memcpy");
-
     memcpy(&rfd, &read_fds, sizeof(fd_set));
     memcpy(&wfd, &write_fds, sizeof(fd_set));
     memcpy(&efd, &error_fds, sizeof(fd_set));
-    printf("post-memcpy");
 
     dump_all_fds("pre select()");
 
@@ -446,7 +447,7 @@ static void fdevent_register(fdevent *fde)
         while(fd_table_max <= fde->fd) {
             fd_table_max *= 2;
         }
-        fd_table = realloc(fd_table, sizeof(fdevent*) * fd_table_max);
+        fd_table = (fdevent **)realloc(fd_table, sizeof(fdevent*) * fd_table_max);
         if(fd_table == 0) {
             FATAL("could not expand fd_table to %d entries\n", fd_table_max);
         }
@@ -681,21 +682,52 @@ void fdevent_subproc_setup()
     fdevent_add(fde, FDE_READ);
 }
 
-void fdevent_loop()
+static void fdevent_exit_func(int fd, unsigned ev, void * userdata) {
+    printf("fdevent_exit_func was fired!!\n");
+    if(ev & FDE_READ){
+         int death;
+
+         if(readx(fd, &death, sizeof(death))) {
+             FATAL("Failed to read the death int from JS\n");
+         }
+
+         if (death == 0xDEAD) {
+           printf("Got should die change\n");
+            SHOULD_DIE = 1;
+         } else {
+           printf("suicide\n");
+           // abort
+            *(void *)0;
+         }
+    }
+}
+
+void fdevent_js_die_setup(int js_die_fd) {
+    fdevent *fde;
+    fde = fdevent_create(js_die_fd, fdevent_exit_func, NULL);
+    if(!fde)
+        FATAL("cannot create fdevent for js-exit handler\n");
+    fdevent_add(fde, FDE_READ);
+    printf("Added FDE");
+}
+
+void fdevent_loop(int js_die_fd)
 {
     fdevent *fde;
     fdevent_subproc_setup();
+    fdevent_js_die_setup(js_die_fd);
 
     for(;;) {
         D("--- ---- waiting for events\n");
-        printf("--- ---- waiting for events\n");
 
         fdevent_process();
-        printf("processed event\n");
 
         while((fde = fdevent_plist_dequeue())) {
-            printf("fdfunc\n");
             fdevent_call_fdfunc(fde);
+            if (SHOULD_DIE) {
+              printf("Exiting loop\n");
+              return;
+            }
         }
     }
 }

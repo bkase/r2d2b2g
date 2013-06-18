@@ -29,6 +29,7 @@
 #define TRACE_TAG   TRACE_USB
 #include "adb.h"
 #include "usb_vendors.h"
+#include "threads.h"
 
 #define  DBG   D
 
@@ -48,6 +49,7 @@ static CFRunLoopRef currentRunLoop = 0;
 static pthread_mutex_t start_lock;
 static pthread_cond_t start_cond;
 
+static pthread_mutex_t should_kill_lock;
 
 static void AndroidInterfaceAdded(void *refCon, io_iterator_t iterator);
 static void AndroidInterfaceNotify(void *refCon, io_iterator_t iterator,
@@ -147,7 +149,7 @@ AndroidInterfaceAdded(void *refCon, io_iterator_t iterator)
 
         //* This gets us the interface object
         result = (*plugInInterface)->QueryInterface(plugInInterface,
-                CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID), (LPVOID)
+                CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID), (LPVOID*)
                 &iface);
         //* We only needed the plugin to get the interface, so discard it
         (*plugInInterface)->Release(plugInInterface);
@@ -181,7 +183,7 @@ AndroidInterfaceAdded(void *refCon, io_iterator_t iterator)
         }
 
         result = (*plugInInterface)->QueryInterface(plugInInterface,
-                CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID), (LPVOID) &dev);
+                CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID), (LPVOID*) &dev);
         //* only needed this to query the plugin
         (*plugInInterface)->Release(plugInInterface);
         if (result || !dev) {
@@ -338,7 +340,7 @@ CheckInterface(IOUSBInterfaceInterface **interface, UInt16 vendor, UInt16 produc
                 interfaceSubClass, interfaceProtocol))
         goto err_bad_adb_interface;
 
-    handle = calloc(1, sizeof(usb_handle));
+    handle = (usb_handle *)calloc(1, sizeof(usb_handle));
 
     //* Iterate over the endpoints for this interface and find the first
     //* bulk in/out pipes available.  These will be our read/write pipes.
@@ -381,22 +383,41 @@ err_get_num_ep:
     return NULL;
 }
 
-void die_handler(int sig) {
-  printf("Cleaning in die handler\n");
-  usb_cleanup();
-  printf("Exiting thread\n");
-  pthread_exit(NULL);
+
+static int should_kill = 0;
+void should_kill_device_loop() {
+  adb_mutex_lock(&should_kill_lock);
+  should_kill = 1;
+  adb_mutex_unlock(&should_kill_lock);
 }
 
-void* RunLoopThread(void* unused)
+static int get_should_kill() {
+  adb_mutex_lock(&should_kill_lock);
+  int tmp = should_kill;
+  adb_mutex_unlock(&should_kill_lock);
+  return tmp;
+}
+
+
+void onTimerFired(CFRunLoopTimerRef timer, void * info) {
+  if (get_should_kill()) {
+    adb_mutex_destroy(&should_kill_lock);
+    printf("Cleaning in timer handler\n");
+    CFRunLoopStop(currentRunLoop);
+  }
+}
+
+void* RunLoopThread(void* args)
 {
     unsigned i;
-
-    signal(SIGUSR2, die_handler);
 
     InitUSB();
 
     currentRunLoop = CFRunLoopGetCurrent();
+
+    CFRunLoopTimerContext context = {0, NULL, NULL, NULL, NULL};
+    CFRunLoopTimerRef timer = CFRunLoopTimerCreate(kCFAllocatorDefault, 0.1, 0.1, 0, 0, &onTimerFired, &context);
+    CFRunLoopAddTimer(currentRunLoop, timer, kCFRunLoopCommonModes);
 
     // Signal the parent that we are running
     adb_mutex_lock(&start_lock);
@@ -411,18 +432,19 @@ void* RunLoopThread(void* unused)
     }
     IONotificationPortDestroy(notificationPort);
 
+    usb_cleanup();
+
+    printf("RunLoopThread done\n");
     DBG("RunLoopThread done\n");
     return NULL;    
 }
 
 
 static int initialized = 0;
-void usb_init()
+void usb_init(int (*spawnD)())
 {
     if (!initialized)
     {
-        adb_thread_t *    tid = malloc(sizeof(adb_thread_t));
-
         notificationIterators = (io_iterator_t*)malloc(
             vendorIdCount * sizeof(io_iterator_t));
 
@@ -430,8 +452,8 @@ void usb_init()
         adb_cond_init(&start_cond, NULL);
 
         printf("Before thread_create");
-        if(adb_thread_create(tid, RunLoopThread, NULL))
-            fatal_errno("cannot create input thread");
+        if(spawnD())
+            fatal_errno("cannot create RunLoopThread");
         printf("After thread_create");
 
         // Wait for initialization to finish

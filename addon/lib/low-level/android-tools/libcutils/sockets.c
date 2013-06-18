@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include <cutils/log.h>
 #include <cutils/sockets.h>
 
 #ifdef HAVE_ANDROID_OS
+#include <cutils/log.h>
 /* For the socket trust (credentials) check */
 #include <private/android_filesystem_config.h>
 #endif

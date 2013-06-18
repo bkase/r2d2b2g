@@ -19,8 +19,17 @@ popd
 prefix "no-"
 mv no-$FILE $FILE
 
-make -C ../lib/low-level/android-tools
-cp ../lib/low-level/android-tools/adb-bin/libadb.so ../data/libadb.so
+case `uname` in
+  MINGW*)
+    LIB=libadb.dll
+    ;;
+  *)
+    LIB=libadb.so
+    make -C ../lib/low-level/android-tools
+    cp ../lib/low-level/android-tools/adb-bin/$LIB ../data/$LIB
+    ;;
+esac
+
 cfx test --verbose
 
 remove_prefix "no-"

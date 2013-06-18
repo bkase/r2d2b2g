@@ -21,5 +21,7 @@ addon/lib/low-level/android-tools/**/*.o
 addon/lib/low-level/android-tools/adb-bin/adb
 addon/lib/low-level/android-tools/adb-bin/adb.dSYM
 addon/lib/low-level/android-tools/adb-bin/libadb.so
+addon/lib/low-level/android-tools/adb-bin/AdbLib.dll
 addon/data/libadb.so
+addon/data/AdbLib.dll
 

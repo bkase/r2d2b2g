@@ -142,7 +142,7 @@ int backup_service(BackupOperation op, char* args) {
         params = (backup_harvest_params*) malloc(sizeof(backup_harvest_params));
         params->pid = pid;
         params->fd = s[0];
-        if (adb_thread_create(t, backup_child_waiter, params)) {
+        if (adb_thread_create(t, backup_child_waiter, params, "backup_service")) {
             adb_close(s[0]);
             free(params);
             D("Unable to create child harvester\n");

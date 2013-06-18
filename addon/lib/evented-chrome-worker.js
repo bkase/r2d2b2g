@@ -18,8 +18,15 @@
     ChromeWorker = require('chrome').ChromeWorker;
   }
 
-  function EventedChromeWorker(url, shouldSpawn) {
-    if (shouldSpawn) {
+  /*
+   * context only exists on the main thread (for now)
+   * it contains anything you want to be accessible in runOnPeerThread calls
+   */
+  function EventedChromeWorker(url, tag, context) {
+    const isUIThread = !!url;
+    this.tag = tag
+    if (isUIThread) {
+      this.context = context;
       this.worker = new ChromeWorker(url);
     } else {
       this.worker = self;
@@ -60,8 +67,39 @@
         }
       }
     }).bind(this);
+
+    // magic (the other half of runOnPeerThread)
+    // TODO: This only works if there are 2 or more args (fix this)
+    this.listenAndForget("_task", (function({ task, args }) {
+      console.log("taskFn: (" + task + ")");
+      console.log("args: " + args );
+      let ja = JSON.parse(args);
+      console.log("ja: " + ja);
+      let taskFn = eval("(" + task + ")");
+      return taskFn.apply(this, ja);
+    }).bind(this));
+
+    // If we are the worker
+    if (!isUIThread) {
+      // on the main thread
+      this.runOnPeerThread(function() {
+        // start a log listener
+        this.listen("log", function log(args) {
+          console.log.apply(console, ["Thread: "].concat(Array.prototype.slice.call(args, 0)));
+        });
+        // add ourselves to __workers (to be terminated later)
+        this.context.__workers.push(this);
+      });
+    } else {
+
+    }
   }
   EventedChromeWorker.prototype = {
+    newWorker: function make(url, args) {
+      console.log("this.context: " + this.context);
+      return new EventedChromeWorker(url, args, this.context);
+    },
+
     emit: function emit(msg, args, onResponse) {
       if (!onResponse) {
         throw "emit must take a callback on response, try emitAndForget";
@@ -109,6 +147,13 @@
     terminate: function terminate() {
       this.worker.terminate();
       return this;
+    },
+
+    runOnPeerThread: function runOnThread(task /*, serializableArgs */) {
+      let serializableArgs = Array.prototype.slice.call(arguments, 1);
+      let args = JSON.stringify(serializableArgs.map(JSON.stringify));
+
+      this.emitAndForget("_task", { task: task.toString(), args: args });
     },
 
     _slug: function _slug(msg, count) {

@@ -16,7 +16,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif
 #include <string.h>
 #include <errno.h>
 
@@ -47,7 +49,7 @@ struct stinfo {
 
 void *service_bootstrap_func(void *x)
 {
-    stinfo *sti = x;
+    stinfo *sti = (stinfo *)x;
     sti->func(sti->fd, sti->cookie);
     free(sti);
     return 0;
@@ -58,7 +60,7 @@ ADB_MUTEX_DEFINE( dns_lock );
 
 static void dns_service(int fd, void *cookie)
 {
-    char *hostname = cookie;
+    char *hostname = (char *)cookie;
     struct hostent *hp;
     unsigned zero = 0;
 
@@ -230,7 +232,7 @@ done:
 static int create_service_thread(void (*func)(int, void *), void *cookie)
 {
     stinfo *sti;
-    adb_thread_t *t = malloc(sizeof(adb_thread_t));
+    adb_thread_t *t = (adb_thread_t *)malloc(sizeof(adb_thread_t));
     int s[2];
 
     if(adb_socketpair(s)) {
@@ -238,13 +240,15 @@ static int create_service_thread(void (*func)(int, void *), void *cookie)
         return -1;
     }
 
-    sti = malloc(sizeof(stinfo));
+    sti = (stinfo *)malloc(sizeof(stinfo));
     if(sti == 0) fatal("cannot allocate stinfo");
     sti->func = func;
     sti->cookie = cookie;
     sti->fd = s[1];
 
-    if(adb_thread_create( t, service_bootstrap_func, sti)){
+    char tag[1024];
+    sprintf(tag, "service_%d", get_guid());
+    if(adb_thread_create( t, service_bootstrap_func, sti, tag )){
         free(sti);
         adb_close(s[0]);
         adb_close(s[1]);
@@ -388,7 +392,9 @@ static int create_subproc_thread(const char *name)
     sti->cookie = (void*)pid;
     sti->fd = ret_fd;
 
-    if(adb_thread_create( &t, service_bootstrap_func, sti)){
+    char tag[1024];
+    sprintf(tag, "subproc_%d", get_guid());
+    if(adb_thread_create( &t, service_bootstrap_func, sti, tag)){
         free(sti);
         adb_close(ret_fd);
         printf("cannot create service thread\n");
@@ -501,7 +507,7 @@ struct state_info {
 
 static void wait_for_state(int fd, void* cookie)
 {
-    struct state_info* sinfo = cookie;
+    struct state_info* sinfo = (struct state_info *)cookie;
     char* err = "unknown error";
 
     D("wait_for_state %d\n", sinfo->state);
@@ -527,7 +533,7 @@ asocket*  host_service_to_socket(const char*  name, const char *serial)
     if (!strcmp(name,"track-devices")) {
         return create_device_tracker();
     } else if (!strncmp(name, "wait-for-", strlen("wait-for-"))) {
-        struct state_info* sinfo = malloc(sizeof(struct state_info));
+        struct state_info* sinfo = (struct state_info *)malloc(sizeof(struct state_info));
 
         if (serial)
             sinfo->serial = strdup(serial);

@@ -19,10 +19,11 @@
         throw "Undeclared function in library";
       return this._memo[name];
     },
-    declare: function declare({ name, returns, args }, lib) {
+    declare: function declare({ name, returns, args, abi /* optional */ }, lib) {
+      let abi = abi || ctypes.default_abi;
       let func =
         lib.declare.apply(lib,
-                          [name, ctypes.default_abi, returns].concat(args));
+                          [name, abi, returns].concat(args));
       this._memo[name] = func;
       return func;
     }

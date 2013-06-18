@@ -14,21 +14,25 @@
  * limitations under the License.
  */
 
+#include "Stdafx.h"
+
 #include <limits.h>
 #include <assert.h>
-#include <windows.h>
 
 void get_my_path(char *exe, size_t maxLen)
 {
     char  *r;
 
     /* XXX: should be GetModuleFileNameA */
-    if (GetModuleFileName(NULL, exe, maxLen) > 0) {
+    WCHAR *exe_ = (WCHAR *)malloc(sizeof(WCHAR) * (maxLen + 1));
+    mbstowcs(exe_, exe, maxLen);
+    if (GetModuleFileName(NULL, exe_, maxLen) > 0) {
         r = strrchr(exe, '\\');
         if (r != NULL)
             *r = '\0';
     } else {
         exe[0] = '\0';
     }
+    free(exe_);
 }
 

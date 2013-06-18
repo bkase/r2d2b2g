@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "Stdafx.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -156,7 +158,7 @@ static void *server_socket_thread(void * arg)
     int serverfd, fd;
     struct sockaddr addr;
     socklen_t alen;
-    int port = (int)arg;
+    int port = *(int *)arg;
 
     D("transport: server_socket_thread() starting\n");
     serverfd = -1;
@@ -238,7 +240,7 @@ static const char _start_req[]  = "start";
 /* 'ok' reply from the adb QEMUD service. */
 static const char _ok_resp[]    = "ok";
 
-    const int port = (int)arg;
+    const int port = *(int *)arg;
     int res, fd;
     char tmp[256];
     char con_name[32];
@@ -255,7 +257,10 @@ static const char _ok_resp[]    = "ok";
          * implement adb QEMUD service. Fall back to the old TCP way. */
         adb_thread_t * thr = malloc(sizeof(adb_thread_t));
         D("adb service is not available. Falling back to TCP socket.\n");
-        adb_thread_create(thr, server_socket_thread, arg);
+
+        char tag[1024];
+        sprintf(tag, "qemu_socket_%d", get_guid());
+        adb_thread_create(thr, server_socket_thread, arg, tag);
         return 0;
     }
 
@@ -298,7 +303,7 @@ static const char _ok_resp[]    = "ok";
 
 void local_init(int port)
 {
-    adb_thread_t * thr = malloc(sizeof(adb_thread_t));
+    adb_thread_t * thr = (adb_thread_t *)malloc(sizeof(adb_thread_t));
     void* (*func)(void *);
 
     if(HOST) {
@@ -323,7 +328,9 @@ void local_init(int port)
 
     D("transport: local %s init\n", HOST ? "client" : "server");
 
-    if(adb_thread_create(thr, func, (void *)port)) {
+    char tag[1024];
+    sprintf(tag, "local_socket %s_%d", HOST ? "client" : "server", get_guid());
+    if(adb_thread_create(thr, func, (void *)&port, tag)) {
         fatal_errno("cannot create local socket %s thread",
                     HOST ? "client" : "server");
     }

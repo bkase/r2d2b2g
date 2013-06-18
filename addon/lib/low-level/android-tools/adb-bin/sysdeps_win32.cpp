@@ -1,10 +1,12 @@
+#include "Stdafx.h"
 #include "sysdeps.h"
-#include <windows.h>
-#include <winsock2.h>
+
 #include <stdio.h>
 #include <errno.h>
 #define  TRACE_TAG  TRACE_SYSDEPS
 #include "adb.h"
+
+
 
 extern void fatal(const char *fmt, ...);
 
@@ -23,8 +25,10 @@ void *load_file(const char *fn, unsigned *_sz)
     HANDLE    file;
     char     *data;
     DWORD     file_size;
+    WCHAR     fn_[4096];
 
-    file = CreateFile( fn,
+    mbstowcs(fn_, fn, 4096);
+    file = CreateFile( fn_,
                        GENERIC_READ,
                        FILE_SHARE_READ,
                        NULL,
@@ -159,8 +163,11 @@ _fh_alloc( FHClass  clazz )
 {
     int  nn;
     FH   f = NULL;
-
-    adb_mutex_lock( &_win32_lock );
+	
+	// TODO: Should this be here?
+	InitializeCriticalSection( &_win32_lock );
+    
+	adb_mutex_lock( &_win32_lock );
 
     if (_win32_fh_count < WIN32_MAX_FHS) {
         f = &_win32_fhs[ _win32_fh_count++ ];
@@ -199,8 +206,8 @@ _fh_close( FH   f )
 }
 
 /* forward definitions */
-static const FHClassRec   _fh_file_class;
-static const FHClassRec   _fh_socket_class;
+//static const FHClassRec   _fh_file_class;
+//static const FHClassRec   _fh_socket_class;
 
 /**************************************************************************/
 /**************************************************************************/
@@ -329,7 +336,10 @@ int  adb_open(const char*  path, int  options)
         return -1;
     }
 
-    f->fh_handle = CreateFile( path, desiredAccess, shareMode, NULL, OPEN_EXISTING,
+    WCHAR path_[MAX_PATH];
+    mbstowcs(path_, path, MAX_PATH);
+
+    f->fh_handle = CreateFile( path_, desiredAccess, shareMode, NULL, OPEN_EXISTING,
                                0, NULL );
 
     if ( f->fh_handle == INVALID_HANDLE_VALUE ) {
@@ -369,7 +379,10 @@ int  adb_creat(const char*  path, int  mode)
         return -1;
     }
 
-    f->fh_handle = CreateFile( path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+    WCHAR path_[MAX_PATH];
+    mbstowcs(path_, path, MAX_PATH);
+
+    f->fh_handle = CreateFile( path_, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
                                NULL );
 
@@ -513,7 +526,7 @@ _fh_socket_lseek( FH  f, int pos, int origin )
 static int
 _fh_socket_read( FH  f, void*  buf, int  len )
 {
-    int  result = recv( f->fh_socket, buf, len, 0 );
+    int  result = recv( f->fh_socket, (char *)buf, len, 0 );
     if (result == SOCKET_ERROR) {
         _socket_set_errno();
         result = -1;
@@ -524,7 +537,7 @@ _fh_socket_read( FH  f, void*  buf, int  len )
 static int
 _fh_socket_write( FH  f, const void*  buf, int  len )
 {
-    int  result = send( f->fh_socket, buf, len, 0 );
+    int  result = send( f->fh_socket, (char *)buf, len, 0 );
     if (result == SOCKET_ERROR) {
         _socket_set_errno();
         result = -1;
@@ -552,7 +565,7 @@ static const FHClassRec  _fh_socket_class =
 /**************************************************************************/
 /**************************************************************************/
 
-#include <winsock2.h>
+// #include <winsock2.h>
 
 static int  _winsock_init;
 
@@ -955,8 +968,9 @@ bip_buffer_write( BipBuffer  bip, const void* src, int  len )
         if (avail > len)
             avail = len;
 
-        memcpy( bip->buff + bip->a_end, src, avail );
-        src   += avail;
+        char * src_ = (char *)src;
+        memcpy( bip->buff + bip->a_end, src_, avail );
+        src_   += avail;
         count += avail;
         len   -= avail;
 
@@ -1047,9 +1061,9 @@ bip_buffer_read( BipBuffer  bip, void*  dst, int  len )
 
     if (avail > len)
         avail = len;
-
-    memcpy( dst, bip->buff + bip->a_start, avail );
-    dst   += avail;
+    char * dst_ = (char *)dst;
+    memcpy( (void *)dst_, bip->buff + bip->a_start, avail );
+    dst_   += avail;
     count += avail;
     len   -= avail;
 
@@ -1197,7 +1211,7 @@ int  adb_socketpair( int  sv[2] )
     if (!fa || !fb)
         goto Fail;
 
-    pair = malloc( sizeof(*pair) );
+    pair = (SocketPair) malloc( sizeof(*pair) );
     if (pair == NULL) {
         D("adb_socketpair: not enough memory to allocate pipes\n" );
         goto Fail;
@@ -1241,8 +1255,11 @@ Fail:
 /**************************************************************************/
 /**************************************************************************/
 
+#ifdef WIN32
+#define FATAL(x, ...) fatal(__FUNCTION__, x)
+#else
 #define FATAL(x...) fatal(__FUNCTION__, x)
-
+#endif
 #if DEBUG
 static void dump_fde(fdevent *fde, const char *info)
 {
@@ -1268,8 +1285,8 @@ static void fdevent_plist_remove(fdevent *node);
 static fdevent *fdevent_plist_dequeue(void);
 
 static fdevent list_pending = {
-    .next = &list_pending,
-    .prev = &list_pending,
+    /* .next = */&list_pending,
+    /* .prev = */&list_pending,
 };
 
 static fdevent **fd_table = 0;
@@ -1301,7 +1318,7 @@ event_hook_alloc( FH  fh )
     if (hook != NULL)
         _free_hooks = hook->next;
     else {
-        hook = malloc( sizeof(*hook) );
+        hook = (EventHook) malloc( sizeof(*hook) );
         if (hook == NULL)
             fatal( "could not allocate event hook\n" );
     }
@@ -1763,7 +1780,7 @@ static void fdevent_register(fdevent *fde)
         while(fd_table_max <= fd) {
             fd_table_max *= 2;
         }
-        fd_table = realloc(fd_table, sizeof(fdevent*) * fd_table_max);
+        fd_table = (fdevent **)realloc(fd_table, sizeof(fdevent*) * fd_table_max);
         if(fd_table == 0) {
             FATAL("could not expand fd_table to %d entries\n", fd_table_max);
         }

@@ -201,6 +201,7 @@ int _adb_connect(const char *service)
         return -1;
     }
 
+    D("writexing: %s %s\n", tmp, service);
     if(writex(fd, tmp, 4) || writex(fd, service, len)) {
         strcpy(__adb_error, "write failure during connection");
         adb_close(fd);
@@ -311,6 +312,7 @@ char *adb_query(const char *service)
     unsigned n;
     char *tmp;
 
+    printf("adb_query: %s\n", service);
     D("adb_query: %s\n", service);
     int fd = adb_connect(service);
     if(fd < 0) {
@@ -322,13 +324,17 @@ char *adb_query(const char *service)
 
     buf[4] = 0;
     n = strtoul(buf, 0, 16);
+    printf("readx the first 4: %s\n", buf);
+    D("readx the first 4: %s\n", buf);
     if(n > 1024) goto oops;
 
-    tmp = malloc(n + 1);
+    tmp = (char*)malloc(n + 1);
     if(tmp == 0) goto oops;
 
     if(readx(fd, tmp, n) == 0) {
         tmp[n] = 0;
+        printf("the rest (from tmp): %s\n", tmp);
+        D("the rest (from tmp): %s\n", tmp);
         adb_close(fd);
         return tmp;
     }

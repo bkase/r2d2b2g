@@ -16,21 +16,24 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif
 #include <string.h>
 #include <errno.h>
-#include <execinfo.h>
+//#include <execinfo.h>
 
 #include "sysdeps.h"
 
 #define   TRACE_TAG  TRACE_TRANSPORT
 #include "adb.h"
+#include "threads.h"
 
 static void transport_unref(atransport *t);
 
 static atransport transport_list = {
-    .next = &transport_list,
-    .prev = &transport_list,
+    /* .next = */ &transport_list,
+    /* .prev = */ &transport_list,
 };
 
 ADB_MUTEX_DEFINE( transport_lock );
@@ -206,7 +209,7 @@ write_packet(int  fd, const char* name, apacket** ppacket)
 
 static void transport_socket_events(int fd, unsigned events, void *_t)
 {
-    atransport *t = _t;
+    atransport *t = (atransport *)_t;
     D("transport_socket_events(fd=%d, events=%04x,...)\n", fd, events);
     if(events & FDE_READ){
         apacket *p = 0;
@@ -248,6 +251,41 @@ void send_packet(apacket *p, atransport *t)
     }
 }
 
+
+static void handle_output_oops(atransport * t) {
+    D("%s: transport output thread is exiting\n", t->serial);
+    kick_transport(t);
+    transport_unref(t);
+}
+
+static void handle_output_offline(atransport * t) {
+    apacket *p;
+
+    D("%s: SYNC offline for transport\n", t->serial);
+    p = get_apacket();
+    p->msg.command = A_SYNC;
+    p->msg.arg0 = 0;
+    p->msg.arg1 = 0;
+    p->msg.magic = A_SYNC ^ 0xffffffff;
+    if(write_packet(t->fd, t->serial, &p)) {
+        put_apacket(p);
+        D("%s: failed to write SYNC apacket to transport", t->serial);
+    }
+}
+
+// this function should be called after the output thread is
+//    terminated from JS (i.e. doesn't execute
+//
+// TODO: RACE CONDITION HERE: if the WebWorker::terminate method 
+//    is called for output_thread just before or during the execution
+//    of these two handle_output_* functions, the transport may be unref'ed twice
+//    (and other sorts of bad things could happen)
+//
+void kill_io_pump(atransport * t) {
+    handle_output_offline(t);
+    handle_output_oops(t);
+}
+
 /* The transport is opened by transport_register_func before
 ** the input and output threads are started.
 **
@@ -260,10 +298,9 @@ void send_packet(apacket *p, atransport *t)
 ** threads exit, but the input thread will kick the transport
 ** on its way out to disconnect the underlying device.
 */
-
-static void *output_thread(void *_t)
+void *output_thread(void *_t)
 {
-    atransport *t = _t;
+    atransport *t = (atransport *)_t;
     apacket *p;
 
     D("%s: starting transport output thread on fd %d, SYNC online (%d)\n",
@@ -298,27 +335,15 @@ static void *output_thread(void *_t)
         }
     }
 
-    D("%s: SYNC offline for transport\n", t->serial);
-    p = get_apacket();
-    p->msg.command = A_SYNC;
-    p->msg.arg0 = 0;
-    p->msg.arg1 = 0;
-    p->msg.magic = A_SYNC ^ 0xffffffff;
-    if(write_packet(t->fd, t->serial, &p)) {
-        put_apacket(p);
-        D("%s: failed to write SYNC apacket to transport", t->serial);
-    }
-
+    handle_output_offline(t);
 oops:
-    D("%s: transport output thread is exiting\n", t->serial);
-    kick_transport(t);
-    transport_unref(t);
-    return 0;
+    handle_output_oops(t);
+    return NULL;
 }
 
-static void *input_thread(void *_t)
+void *input_thread(void *_t)
 {
-    atransport *t = _t;
+    atransport *t = (atransport *)_t;
     apacket *p;
     int active = 0;
 
@@ -483,7 +508,7 @@ device_tracker_ready( asocket*  socket )
 asocket*
 create_device_tracker(void)
 {
-    device_tracker*  tracker = calloc(1,sizeof(*tracker));
+    device_tracker*  tracker = (device_tracker*)calloc(1,sizeof(*tracker));
 
     if(tracker == 0) fatal("cannot allocate device tracker");
 
@@ -577,9 +602,28 @@ transport_write_action(int  fd, struct tmsg*  m)
     return 0;
 }
 
+// casting between a function pointer and a (void *) is undefined behavior in C
+// However, casting a (void *) to and from a struct pointer is allowed
+struct spawnFunc_carrier {
+    int (*spawnIO)(atransport *);
+};
+
+// TODO: free these as they are finished being used
+//    (perhaps could use a signal and have transport_reg_func block until signal fired)
+static tmsg * tmsgs[1024];
+static int tmsgs_count = 0;
+static tmsg * addTMessage() {
+  tmsg * tmp = malloc(sizeof(tmsg));
+  tmsgs[tmsgs_count++] = tmp;
+  return tmp;
+}
+
 static void transport_registration_func(int _fd, unsigned ev, void *data)
 {
-    tmsg m;
+    struct spawnFunc_carrier * c = (struct spawnFunc_carrier *)data;
+    int (*spawnIO)(atransport *) = c->spawnIO;
+
+    tmsg * m = addTMessage();
    int s[2];
     atransport *t;
 
@@ -587,13 +631,13 @@ static void transport_registration_func(int _fd, unsigned ev, void *data)
         return;
     }
 
-    if(transport_read_action(_fd, &m)) {
+    if(transport_read_action(_fd, m)) {
         fatal_errno("cannot read transport registration socket");
     }
 
-    t = m.transport;
+    t = m->transport;
 
-    if(m.action == 0){
+    if(m->action == 0){
         D("transport: %s removing and free'ing %d\n", t->serial, t->transport_socket);
 
             /* IMPORTANT: the remove closes one half of the
@@ -629,8 +673,8 @@ static void transport_registration_func(int _fd, unsigned ev, void *data)
 
     /* don't create transport threads for inaccessible devices */
     if (t->connection_state != CS_NOPERM) {
-      adb_thread_t * output_thread_ptr = malloc(sizeof(adb_thread_t));
-      adb_thread_t * input_thread_ptr = malloc(sizeof(adb_thread_t));
+      // adb_thread_t * output_thread_ptr = (adb_thread_t*)malloc(sizeof(adb_thread_t));
+      // adb_thread_t * input_thread_ptr = (adb_thread_t*)malloc(sizeof(adb_thread_t));
 
         /* initial references are the two threads */
         t->ref_count = 2;
@@ -651,15 +695,23 @@ static void transport_registration_func(int _fd, unsigned ev, void *data)
 
         fdevent_set(&(t->transport_fde), FDE_READ);
 
-        if(adb_thread_create(input_thread_ptr, input_thread, t)){
+        spawnIO(t);
+
+        /*char i_tag[1024];
+        char o_tag[1024];
+        sprintf(i_tag, "I: %s_%d", t->serial, get_guid());
+        sprintf(o_tag, "O: %s_%d", t->serial, get_guid());*/
+
+        //dump_thread_tag();
+        /*if(adb_thread_create(input_thread_ptr, input_thread, t, i_tag)){
             fatal_errno("cannot create input thread");
         }
 
-        if(adb_thread_create(output_thread_ptr, output_thread, t)){
+        if(adb_thread_create(output_thread_ptr, output_thread, t, o_tag)){
             fatal_errno("cannot create output thread");
-        }
+        }*/
     }
-
+	
         /* put us on the master device list */
     adb_mutex_lock(&transport_lock);
     t->next = &transport_list;
@@ -673,7 +725,15 @@ static void transport_registration_func(int _fd, unsigned ev, void *data)
     update_transports();
 }
 
-void init_transport_registration(void)
+static struct spawnFunc_carrier * s_carrier;
+void cleanup_transport() {
+    free(s_carrier);
+    for (int i = 0; i < tmsgs_count; i++) {
+      free(tmsgs[tmsgs_count]);
+    }
+}
+
+void init_transport_registration(int (*spawnIO)(atransport*))
 {
     int s[2];
 
@@ -684,10 +744,14 @@ void init_transport_registration(void)
     transport_registration_send = s[0];
     transport_registration_recv = s[1];
 
+    struct spawnFunc_carrier * c = malloc(sizeof(struct spawnFunc_carrier));
+    c->spawnIO = spawnIO;
+    s_carrier = c; // this is freed in cleanup_transport
+
     fdevent_install(&transport_registration_fde,
                     transport_registration_recv,
                     transport_registration_func,
-                    0);
+                    (void *)c);
 
     fdevent_set(&transport_registration_fde, FDE_READ);
 }
@@ -999,7 +1063,7 @@ void close_usb_devices()
 
 void register_socket_transport(int s, const char *serial, int port, int local)
 {
-    atransport *t = calloc(1, sizeof(atransport));
+    atransport *t = (atransport*)calloc(1, sizeof(atransport));
     char buff[32];
 
     if (!serial) {
@@ -1075,7 +1139,7 @@ void unregister_all_tcp_transports()
 
 void register_usb_transport(usb_handle *usb, const char *serial, const char *devpath, unsigned writeable)
 {
-    atransport *t = calloc(1, sizeof(atransport));
+    atransport *t = (atransport *)calloc(1, sizeof(atransport));
     D("transport: %p init'ing for usb_handle %p (sn='%s')\n", t, usb,
       serial ? serial : "");
     init_usb_transport(t, usb, (writeable ? CS_OFFLINE : CS_NOPERM));
@@ -1108,7 +1172,7 @@ void unregister_usb_transport(usb_handle *usb)
 
 int readx(int fd, void *ptr, size_t len)
 {
-    char *p = ptr;
+    char *p = (char *)ptr;
     int r;
 #if ADB_TRACE_FORCE
     int  len0 = len;
@@ -1201,3 +1265,4 @@ int check_data(apacket *p)
         return 0;
     }
 }
+

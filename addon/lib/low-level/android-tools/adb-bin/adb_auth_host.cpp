@@ -236,7 +236,7 @@ static int read_key(const char *file, struct listnode *list)
         return 0;
     }
 
-    key = malloc(sizeof(*key));
+    key = (struct adb_private_key *)malloc(sizeof(*key));
     if (!key) {
         D("Failed to alloc key\n");
         fclose(f);
@@ -348,7 +348,7 @@ int adb_auth_sign(void *node, void *token, size_t token_size, void *sig)
     unsigned int len;
     struct adb_private_key *key = node_to_item(node, struct adb_private_key, node);
 
-    if (!RSA_sign(NID_sha1, token, token_size, sig, &len, key->rsa)) {
+    if (!RSA_sign(NID_sha1, (unsigned char *)token, token_size, (unsigned char *)sig, &len, key->rsa)) {
         return 0;
     }
 
@@ -391,7 +391,7 @@ int adb_auth_get_userkey(unsigned char *data, size_t len)
     }
     strcat(path, ".pub");
 
-    file = load_file(path, (unsigned*)&ret);
+    file = (char *)load_file(path, (unsigned*)&ret);
     if (!file) {
         D("Can't load '%s'\n", path);
         return 0;

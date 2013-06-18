@@ -52,6 +52,7 @@ let AdbClient = Class({
     if (view[0] == FAIL) {
       debug("Response: FAIL");
     }
+    debug("view[0] = " + view[0]);
     return view[0] == OKAY;
   },
 

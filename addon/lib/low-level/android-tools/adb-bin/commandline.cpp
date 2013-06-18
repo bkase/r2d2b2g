@@ -14,11 +14,21 @@
  * limitations under the License.
  */
 
+#ifndef S_ISDIR
+#define S_ISDIR(mode)  (((mode) & S_IFMT) == S_IFDIR)
+#endif
+
+#ifndef S_ISREG
+#define S_ISREG(mode)  (((mode) & S_IFMT) == S_IFREG)
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif
 #include <limits.h>
 #include <stdarg.h>
 #include <sys/types.h>
@@ -60,7 +70,7 @@ static char *product_file(const char *extra)
     }
 
     n = strlen(gProductOutPath) + strlen(extra) + 2;
-    x = malloc(n);
+    x = (char *)malloc(n);
     if (x == 0) {
         fprintf(stderr, "adb: Out of memory (product_file())\n");
         exit(1);
@@ -341,7 +351,7 @@ static void *stdin_read_thread(void *x)
 
 int interactive_shell(void)
 {
-    adb_thread_t * thr = malloc(sizeof(adb_thread_t));
+    adb_thread_t * thr = (adb_thread_t *)malloc(sizeof(adb_thread_t));
     int fdi, fd;
     int *fds;
 
@@ -352,14 +362,14 @@ int interactive_shell(void)
     }
     fdi = 0; //dup(0);
 
-    fds = malloc(sizeof(int) * 2);
+    fds = (int *)malloc(sizeof(int) * 2);
     fds[0] = fd;
     fds[1] = fdi;
 
 #ifdef HAVE_TERMIO_H
     stdin_raw_init(fdi);
 #endif
-    adb_thread_create(thr, stdin_read_thread, fds);
+    adb_thread_create(thr, stdin_read_thread, fds, "stdin_thread");
     read_and_dump(fd);
 #ifdef HAVE_TERMIO_H
     stdin_raw_restore(fdi);
@@ -399,13 +409,16 @@ int adb_download_buffer(const char *service, const void* data, int sz,
     }
 
     int opt = CHUNK_SIZE;
-    opt = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &opt, sizeof(opt));
+    // TODO: this might be a bad cast
+    opt = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (const char *)&opt, sizeof(opt));
 
     total = sz;
-    ptr = data;
+    ptr = (const unsigned char *)data;
+
+    char * service_ = strdup(service);
 
     if(progress) {
-        char *x = strrchr(service, ':');
+        char *x = strrchr(service_, ':');
         if(x) service = x + 1;
     }
 
@@ -680,7 +693,7 @@ static int mkdirs(char *path)
     char *x = path + 1;
 
     for(;;) {
-        x = adb_dirstart(x);
+        x = strdup(adb_dirstart(x));
         if(x == 0) return 0;
         *x = 0;
         ret = adb_mkdir(path, 0775);
@@ -784,7 +797,11 @@ static int top_works(const char *top)
         char path_buf[PATH_MAX];
         snprintf(path_buf, sizeof(path_buf),
                 "%s" OS_PATH_SEPARATOR_STR SENTINEL_FILE, top);
+#ifdef WIN32
+        return false;
+#else
         return access(path_buf, F_OK) == 0;
+#endif
     }
     return 0;
 }
@@ -796,7 +813,7 @@ static char *find_top_from(const char *indir, char path_buf[PATH_MAX])
         if (top_works(path_buf)) {
             return path_buf;
         }
-        char *s = adb_dirstop(path_buf);
+        char *s = strdup(adb_dirstop(path_buf));
         if (s != NULL) {
             *s = '\0';
         } else {
@@ -910,11 +927,13 @@ static const char *find_product_out_path(const char *hint)
             "target" OS_PATH_SEPARATOR_STR
             "product" OS_PATH_SEPARATOR_STR
             "%s", top_buf, hint);
+#ifndef WIN32
     if (access(path_buf, F_OK) < 0) {
         fprintf(stderr, "adb: Couldn't find a product dir "
                 "based on \"-p %s\"; \"%s\" doesn't exist\n", hint, path_buf);
         return NULL;
     }
+#endif
     return path_buf;
 }
 

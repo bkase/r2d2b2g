@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include <windows.h>
+#include "Stdafx.h"
+
 #include <winerror.h>
 #include <errno.h>
 #include <usb100.h>
@@ -25,6 +26,22 @@
 
 #define   TRACE_TAG  TRACE_USB
 #include "adb.h"
+
+#if 0
+#define AdbWriteEndpointSync(...) (0)
+#define AdbReadEndpointSync(...) (0)
+#define AdbOpenDefaultBulkWriteEndpoint(...) (malloc(sizeof(usb_handle)))
+#define AdbOpenDefaultBulkReadEndpoint(...) (malloc(sizeof(usb_handle)))
+#define AdbNextInterface(...) (false)
+#define AdbGetUsbInterfaceDescriptor(...) (false)
+#define AdbGetUsbDeviceDescriptor(...) (false)
+#define AdbGetSerialNumber(...) (false)
+#define AdbGetInterfaceName(...) (false)
+#define AdbGetEndpointInformation(...) (false)
+#define AdbEnumInterfaces(...) ((ADBAPIHANDLE)NULL)
+#define AdbCreateInterfaceByName(...) ((ADBAPIHANDLE)NULL)
+#define AdbCloseHandle(...) (false)
+#endif
 
 /** Structure usb_handle describes our connection to the usb device via
   AdbWinApi.dll. This structure is returned from usb_open() routine and
@@ -58,8 +75,8 @@ static const GUID usb_class_id = ANDROID_USB_CLASS_ID;
 
 /// List of opened usb handles
 static usb_handle handle_list = {
-  .prev = &handle_list,
-  .next = &handle_list,
+  /* .prev = */ &handle_list,
+  /* .next = */ &handle_list,
 };
 
 /// Locker for the list of opened usb handles
@@ -179,9 +196,10 @@ void* device_poll_thread(void* unused) {
 void usb_init() {
   adb_thread_t tid;
 
-  if(adb_thread_create(&tid, device_poll_thread, NULL)) {
+  TODO WHY IS THIS COMMENTED OUT
+  /*if(adb_thread_create(&tid, device_poll_thread, NULL, "device_poll")) {
     fatal_errno("cannot create input thread");
-  }
+  }*/
 }
 
 void usb_cleanup() {
@@ -303,6 +321,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
   unsigned long time_out = 0;
   unsigned long read = 0;
   int ret;
+  char * data_ = (char *)data;
 
   D("usb_read %d\n", len);
   if (NULL != handle) {
@@ -310,14 +329,14 @@ int usb_read(usb_handle *handle, void* data, int len) {
       int xfer = (len > 4096) ? 4096 : len;
 
       ret = AdbReadEndpointSync(handle->adb_read_pipe,
-                                  (void*)data,
+                                  (void*)data_,
                                   (unsigned long)xfer,
                                   &read,
                                   time_out);
       int saved_errno = GetLastError();
       D("usb_write got: %ld, expected: %d, errno: %d\n", read, xfer, saved_errno);
       if (ret) {
-        data += read;
+        data_ += read;
         len -= read;
 
         if (len == 0)
@@ -512,4 +531,5 @@ void find_devices() {
   }
 
   AdbCloseHandle(enum_handle);
+  
 }

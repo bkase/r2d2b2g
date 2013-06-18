@@ -17,6 +17,29 @@
 #ifndef __ADB_H
 #define __ADB_H
 
+#ifdef __cplusplus
+  #define EXTERN_C_START extern "C" {
+  #define EXTERN_C_END }
+#else
+  #define EXTERN_C_START
+  #define EXTERN_C_END
+#endif
+
+
+// some extra visual studios stuff
+#ifdef _WIN32
+#define ADB_HOST 1
+#define snprintf _snprintf
+#define HAVE_WIN32_PROC 1
+#define HAVE_WIN32_IPC 1
+#define HAVE_WINSOCK 1
+#define PATH_MAX 4096
+#define DLL_EXPORT _declspec(dllexport)
+#else
+#define DLL_EXPORT  
+#define Sleep(x) usleep((x) * 1000)
+#endif
+
 #include <limits.h>
 
 #include "transport.h"  /* readx(), writex() */
@@ -134,6 +157,9 @@ struct asocket {
 
     	/* A socket is bound to atransport */
     atransport *transport;
+
+      /* a tag denoting the type of the socket (for debugging) */
+    char * tag;
 };
 
 
@@ -234,8 +260,30 @@ struct alistener
     adisconnect  disconnect;
 };
 
-int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg );
-void cleanup(void);
+struct adb_main_input {
+  int is_daemon;
+  int server_port;
+  int is_lib_call;
+
+  // listen to this file-descriptor and die when it is written to
+  int exit_fd;
+
+  int (*spawnIO)(atransport*);
+  int (*spawnD)();
+};
+
+// a function carrier for a CFRunLoopTimerCallback
+struct func_carrier {
+  int (*should_kill)(void);
+};
+
+int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag );
+void dump_thread_tag();
+int get_guid();
+void cleanup_all(void);
+void cleanup_transport(void);
+void should_kill_device_loop();
+void kill_io_pump(atransport * t);
 
 void print_packet(const char *label, apacket *p);
 
@@ -267,7 +315,7 @@ int adb_main(int is_daemon, int server_port, int is_lib_call);
 /* transports are ref-counted
 ** get_device_transport does an acquire on your behalf before returning
 */
-void init_transport_registration(void);
+void init_transport_registration(int (*spawnIO)(atransport*));
 int  list_transports(char *buf, size_t  bufsize, int long_listing);
 void update_transports(void);
 

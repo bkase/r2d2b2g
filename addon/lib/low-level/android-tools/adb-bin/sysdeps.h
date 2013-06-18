@@ -26,19 +26,22 @@
 
 #ifdef _WIN32
 
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#include "Stdafx.h"
+
 #include <process.h>
 #include <fcntl.h>
 #include <io.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <ctype.h>
+#include <direct.h>
+#include <stdio.h>
 
 #define OS_PATH_SEPARATOR '\\'
 #define OS_PATH_SEPARATOR_STR "\\"
 #define ENV_PATH_SEPARATOR_STR ";"
+
+#define __inline__ __inline
 
 typedef CRITICAL_SECTION          adb_mutex_t;
 
@@ -76,6 +79,20 @@ static __inline__ int  adb_thread_create_raw( adb_thread_t  *thread, adb_thread_
     return 0;
 }
 
+static VOID CALLBACK callback(unsigned long data) {
+  printf("Callback called from APC queue");
+  _endthreadex(0);
+}
+
+static __inline__ int adb_thread_join( adb_thread_t thread ) {
+  return WaitForSingleObject((HANDLE)thread.tid, INFINITE);
+}
+
+static __inline__ int adb_thread_cancel( adb_thread_t thread ) {
+	QueueUserAPC(callback, (HANDLE)thread.tid, (ULONG_PTR)0);
+	return 0;
+}
+
 static __inline__ void  close_on_exec(int  fd)
 {
     /* nothing really */
@@ -89,7 +106,7 @@ extern void  disable_tcp_nagle(int  fd);
 
 static __inline__  int    adb_unlink(const char*  path)
 {
-    int  rc = unlink(path);
+    int  rc = _unlink(path);
 
     if (rc == -1 && errno == EACCES) {
         /* unlink returns EACCES when the file is read-only, so we first */
@@ -224,10 +241,10 @@ static __inline__  int  adb_socket_setbufsize( int   fd, int  bufsize )
 
 extern int  adb_socketpair( int  sv[2] );
 
-static __inline__  char*  adb_dirstart( const char*  path )
+static __inline__  const char*  adb_dirstart( const char*  path )
 {
-    char*  p  = strchr(path, '/');
-    char*  p2 = strchr(path, '\\');
+    const char*  p  = strchr(path, '/');
+    const char*  p2 = strchr(path, '\\');
 
     if ( !p )
         p = p2;
@@ -237,10 +254,10 @@ static __inline__  char*  adb_dirstart( const char*  path )
     return p;
 }
 
-static __inline__  char*  adb_dirstop( const char*  path )
+static __inline__  const char*  adb_dirstop( const char*  path )
 {
-    char*  p  = strrchr(path, '/');
-    char*  p2 = strrchr(path, '\\');
+    const char*  p  = strrchr(path, '/');
+    const char*  p2 = strrchr(path, '\\');
 
     if ( !p )
         p = p2;
@@ -440,9 +457,17 @@ static __inline__ int  adb_thread_create_raw( adb_thread_t  *pthread, adb_thread
     /*pthread_attr_t   attr;
 
     pthread_attr_init (&attr);
-    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);*/
+    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);*/	
 
     return pthread_create( pthread, NULL/*&attr*/, start, arg );
+}
+
+static __inline__ int adb_thread_join( adb_thread_t thread ) {
+  return pthread_join(thread, NULL);
+}
+
+static __inline__ int adb_thread_cancel( adb_thread_t thread ) {
+    return pthread_cancel(thread);
 }
 
 static __inline__  int  adb_socket_setbufsize( int   fd, int  bufsize )

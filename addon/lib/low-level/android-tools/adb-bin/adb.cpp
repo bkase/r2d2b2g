@@ -24,13 +24,16 @@
 #include <stddef.h>
 #include <string.h>
 #include <time.h>
-#include <sys/time.h>
+//#include <sys/time.h>
 #include <stdint.h>
 
 #include "sysdeps.h"
 #include "adb.h"
 #include "adb_client.h"
-#include "adb_auth.h"
+#include "threads.h"
+#ifndef NO_AUTH
+  #include "adb_auth.h"
+#endif
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -59,30 +62,67 @@ static int auth_enabled = 0;
 static const char *adb_device_banner = "device";
 #endif
 
-ADB_MUTEX_DEFINE( threads_active_lock );
-adb_thread_t* __adb_threads_active[1024];
-int __adb_threads_active_count = 0;
+static void remove_all_listeners(void);
 
-void addSpawnedThread(adb_thread_t * thread) {
-  printf("Creating thread: %d\n", __adb_threads_active_count);
-  __adb_threads_active[__adb_threads_active_count++] = thread;
+ADB_MUTEX_DEFINE( guid_lock );
+static int x = 0;
+int get_guid() {
+  adb_mutex_lock(&guid_lock);
+  int tmp = x++;
+  adb_mutex_unlock(&guid_lock);
+  return tmp;
 }
 
-int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg ) {
+
+ADB_MUTEX_DEFINE( threads_active_lock );
+
+// TODO: Dynamically remove dead threads
+adb_thread_t* __adb_threads_active[1024];
+char * __adb_tags_active[1024];
+int __adb_threads_active_count = 0;
+
+void dump_thread_tag() {
+  adb_mutex_lock(&threads_active_lock);
+  int didDump = 0;
+  pthread_t currentThread = pthread_self();
+  for (int i = 0; i < __adb_threads_active_count; i++) {
+    if (pthread_equal(currentThread, *__adb_threads_active[i])) {
+      printf("CURRENT THREAD IS %s\n", __adb_tags_active[i]);
+      didDump = 1;
+      adb_mutex_unlock(&threads_active_lock);
+      return;
+    }
+  }
+
+  if (!didDump) {
+    // die
+    __builtin_trap();
+  }
+  adb_mutex_unlock(&threads_active_lock);
+}
+
+void addSpawnedThread(adb_thread_t * thread, char * tag) {
+  printf("Creating thread: %d\n", __adb_threads_active_count);
+  __adb_threads_active[__adb_threads_active_count] = thread;
+  __adb_tags_active[__adb_threads_active_count++] = strdup(tag);
+}
+
+int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag ) {
   int err = adb_thread_create_raw(thread, start, arg);
   if (err >= 0) {
-    addSpawnedThread(thread);
+    addSpawnedThread(thread, tag);
   }
   return err;
 }
 
-void cleanup() {
+void cleanup_all() {
   int err = 0;
   int i = 0;
   printf("Cleaning USB (async)\n");
   // usb_cleanup();
   #ifdef __APPLE__
-    pthread_kill(*__adb_threads_active[1], SIGUSR2);
+    // TODO: Figure out how to accomplish this with web workers
+    // pthread_kill(*__adb_threads_active[1], SIGUSR2);
   #endif
 
   printf("Killing threads!\n");
@@ -90,7 +130,7 @@ void cleanup() {
     adb_thread_t *thread = __adb_threads_active[i];
     printf("Killing thread: %d, %p\n", i, thread);
 
-    err = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    /*err = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     if (err < 0) {
       printf("ERROR: set cancel state %d\n", err);
     }
@@ -98,22 +138,29 @@ void cleanup() {
     err = pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     if (err < 0) {
       printf("ERROR: set cancel type %d\n", err);
-    }
+    }*/
 
-    err = pthread_cancel(*thread);
+    err = adb_thread_cancel(*thread);
     if (err < 0) {
       printf("ERROR: cancelling %d\n", err);
     }
     
-    err = pthread_join(*thread, NULL);
+    err = adb_thread_join(*thread);
     if (err < 0) {
       printf("ERROR: joining %d\n", err);
     }
 
     free(thread);
+    free(__adb_tags_active[i]);
     printf("Freed thread: %d\n", i);
   }
-  printf("Killed all threads!");
+  printf("Killed all threads!\n");
+  printf("Freeing data\n");
+  cleanup_transport();
+  printf("Done freeing data\n");
+  printf("Removing all listeners on sockets\n");
+  remove_all_listeners();
+  printf("Done removing all listeners\n");
 }
 
 void fatal(const char *fmt, ...)
@@ -259,7 +306,7 @@ void adb_qemu_trace(const char* fmt, ...)
 
 apacket *get_apacket(void)
 {
-    apacket *p = malloc(sizeof(apacket));
+    apacket *p = (apacket *)malloc(sizeof(apacket));
     if(p == 0) fatal("failed to allocate an apacket");
     memset(p, 0, sizeof(apacket) - MAX_PAYLOAD);
     return p;
@@ -327,8 +374,9 @@ void print_packet(const char *label, apacket *p)
 
 static void send_ready(unsigned local, unsigned remote, atransport *t)
 {
+    apacket *p;
     D("Calling send_ready \n");
-    apacket *p = get_apacket();
+    p = get_apacket();
     p->msg.command = A_OKAY;
     p->msg.arg0 = local;
     p->msg.arg1 = remote;
@@ -337,8 +385,9 @@ static void send_ready(unsigned local, unsigned remote, atransport *t)
 
 static void send_close(unsigned local, unsigned remote, atransport *t)
 {
+    apacket *p;
     D("Calling send_close \n");
-    apacket *p = get_apacket();
+    p = get_apacket();
     p->msg.command = A_CLSE;
     p->msg.arg0 = local;
     p->msg.arg1 = remote;
@@ -377,8 +426,9 @@ static size_t fill_connect_data(char *buf, size_t bufsize)
 
 static void send_connect(atransport *t)
 {
+    apacket *cp;
     D("Calling send_connect \n");
-    apacket *cp = get_apacket();
+    cp = get_apacket();
     cp->msg.command = A_CNXN;
     cp->msg.arg0 = A_VERSION;
     cp->msg.arg1 = MAX_PAYLOAD;
@@ -387,11 +437,13 @@ static void send_connect(atransport *t)
     send_packet(cp, t);
 }
 
+#ifndef NO_AUTH
 static void send_auth_request(atransport *t)
 {
-    D("Calling send_auth_request\n");
     apacket *p;
     int ret;
+
+    D("Calling send_auth_request\n");
 
     ret = adb_auth_generate_token(t->token, sizeof(t->token));
     if (ret != sizeof(t->token)) {
@@ -409,9 +461,10 @@ static void send_auth_request(atransport *t)
 
 static void send_auth_response(uint8_t *token, size_t token_size, atransport *t)
 {
-    D("Calling send_auth_response\n");
-    apacket *p = get_apacket();
+    apacket *p;
     int ret;
+    p = get_apacket();
+    D("Calling send_auth_response\n");
 
     ret = adb_auth_sign(t->key, token, token_size, p->data);
     if (!ret) {
@@ -428,9 +481,10 @@ static void send_auth_response(uint8_t *token, size_t token_size, atransport *t)
 
 static void send_auth_publickey(atransport *t)
 {
-    D("Calling send_auth_publickey\n");
-    apacket *p = get_apacket();
+    apacket *p;
     int ret;
+    D("Calling send_auth_publickey\n");
+    p = get_apacket();
 
     ret = adb_auth_get_userkey(p->data, sizeof(p->data));
     if (!ret) {
@@ -450,6 +504,7 @@ void adb_auth_verified(atransport *t)
     handle_online(t);
     send_connect(t);
 }
+#endif
 
 static char *connection_state_name(atransport *t)
 {
@@ -591,10 +646,13 @@ void handle_packet(apacket *p, atransport *t)
             handle_online(t);
             if(!HOST) send_connect(t);
         } else {
+		#ifndef NO_AUTH
             send_auth_request(t);
+		#endif
         }
         break;
 
+	#ifndef NO_AUTH
     case A_AUTH:
         if (p->msg.arg0 == ADB_AUTH_TOKEN) {
             t->key = adb_auth_nextkey(t->key);
@@ -617,6 +675,7 @@ void handle_packet(apacket *p, atransport *t)
             adb_auth_confirm_key(p->data, p->msg.data_length, t);
         }
         break;
+	#endif
 
     case A_OPEN: /* OPEN(local-id, 0, "destination") */
         if (t->online) {
@@ -677,13 +736,14 @@ void handle_packet(apacket *p, atransport *t)
 }
 
 alistener listener_list = {
-    .next = &listener_list,
-    .prev = &listener_list,
+    /* .next = */&listener_list,
+    /*.prev = */&listener_list,
 };
 
 static void ss_listener_event_func(int _fd, unsigned ev, void *_l)
 {
     asocket *s;
+
 
     if(ev & FDE_READ) {
         struct sockaddr addr;
@@ -698,6 +758,7 @@ static void ss_listener_event_func(int _fd, unsigned ev, void *_l)
 
         s = create_local_socket(fd);
         if(s) {
+            printf("in ss_listener_event_func connecting to smartsocket");
             connect_to_smartsocket(s);
             return;
         }
@@ -708,7 +769,7 @@ static void ss_listener_event_func(int _fd, unsigned ev, void *_l)
 
 static void listener_event_func(int _fd, unsigned ev, void *_l)
 {
-    alistener *l = _l;
+    alistener *l = (alistener *)_l;
     asocket *s;
 
     if(ev & FDE_READ) {
@@ -756,7 +817,7 @@ static void  free_listener(alistener*  l)
 
 static void listener_disconnect(void*  _l, atransport*  t)
 {
-    alistener*  l = _l;
+    alistener*  l = (alistener *)_l;
 
     free_listener(l);
 }
@@ -826,10 +887,11 @@ static int format_listeners(char* buf, size_t buflen)
     alistener* l;
     int result = 0;
     for (l = listener_list.next; l != &listener_list; l = l->next) {
+        int len;
         // Ignore special listeners like those for *smartsocket*
         if (l->connect_to[0] == '*')
           continue;
-        int len = format_listener(l, buf, buflen);
+        len = format_listener(l, buf, buflen);
         // Ensure there is space for the trailing zero.
         result += len;
         if (buf != NULL) {
@@ -882,7 +944,7 @@ static install_status_t install_listener(const char *local_name,
 {
     alistener *l;
 
-    //printf("install_listener('%s','%s')\n", local_name, connect_to);
+    printf("install_listener('%s','%s')\n", local_name, connect_to);
 
     for(l = listener_list.next; l != &listener_list; l = l->next){
         if(strcmp(local_name, l->local_name) == 0) {
@@ -903,7 +965,7 @@ static install_status_t install_listener(const char *local_name,
                 return INSTALL_STATUS_INTERNAL_ERROR;
             }
 
-            //printf("rebinding '%s' to '%s'\n", local_name, connect_to);
+            printf("rebinding '%s' to '%s'\n", local_name, connect_to);
             free((void*) l->connect_to);
             l->connect_to = cto;
             if (l->transport != transport) {
@@ -915,7 +977,7 @@ static install_status_t install_listener(const char *local_name,
         }
     }
 
-    if((l = calloc(1, sizeof(alistener))) == 0) goto nomem;
+    if((l = (alistener*)calloc(1, sizeof(alistener))) == 0) goto nomem;
     if((l->local_name = strdup(local_name)) == 0) goto nomem;
     if((l->connect_to = strdup(connect_to)) == 0) goto nomem;
 
@@ -929,7 +991,7 @@ static install_status_t install_listener(const char *local_name,
         free((void*) l->connect_to);
         free(l);
         printf("cannot bind '%s'\n", local_name);
-        return -2;
+        return INSTALL_STATUS_CANNOT_BIND;
     }
 
     close_on_exec(l->fd);
@@ -975,10 +1037,12 @@ void start_logging(void)
 {
 #ifdef HAVE_WIN32_PROC
     char    temp[ MAX_PATH ];
+    WCHAR   temp_[ MAX_PATH ];
     FILE*   fnul;
     FILE*   flog;
 
-    GetTempPath( sizeof(temp) - 8, temp );
+    GetTempPath( sizeof(temp) - 8, temp_ );
+    wcstombs(temp, temp_, MAX_PATH);
     strcat( temp, "adb.log" );
 
     /* Win32 specific redirections */
@@ -1064,7 +1128,7 @@ int launch_server(int server_port)
     SECURITY_ATTRIBUTES   sa;
     STARTUPINFO           startup;
     PROCESS_INFORMATION   pinfo;
-    char                  program_path[ MAX_PATH ];
+    WCHAR                 program_path[ MAX_PATH ];
     int                   ret;
 
     sa.nLength = sizeof(sa);
@@ -1114,7 +1178,7 @@ int launch_server(int server_port)
 
     ret = CreateProcess(
             program_path,                              /* program path  */
-            "adb fork-server server",
+            TEXT("adb fork-server server"),
                                     /* the fork-server argument will set the
                                        debug = 2 in the child           */
             NULL,                   /* process handle is not inheritable */
@@ -1205,7 +1269,7 @@ int launch_server(int server_port)
         setsid();
     }
 #else
-#error "cannot implement background server start on this platform"
+// #error "cannot implement background server start on this platform"
 #endif
     return 0;
 }
@@ -1255,33 +1319,26 @@ static int should_drop_privileges() {
 }
 #endif /* !ADB_HOST */
 
-/*static void* event_loop_thread(void* args) {
-    printf("Starting event loop...");
-    fdevent_loop();
-
-    usb_cleanup();
-
-    return NULL;
-}*/
-
-struct adb_main_input {
-  int is_daemon;
-  int server_port;
-  int is_lib_call;
-};
-
 void * server_thread(void * args) {
+  adb_sysdeps_init();
+
   struct adb_main_input* input = (struct adb_main_input*)args;
   int is_daemon = input->is_daemon;
   int server_port = input->server_port;
   int is_lib_call = input->is_lib_call;
 
+  int exit_fd = input->exit_fd;
+
+  int (*spawnIO)(atransport*) = input->spawnIO;
+  int (*spawnD)() = input->spawnD;
+
   free(input);
 
   if (is_lib_call) {
+      printf("THIS needs to run!\n");
+      transport_type ttype = kTransportAny;
       char* serial = NULL;
       serial = getenv("ANDROID_SERIAL");
-      transport_type ttype = kTransportAny;
       adb_set_transport(ttype, serial);
       adb_set_tcp_specifics(server_port);
     }
@@ -1303,22 +1360,30 @@ void * server_thread(void * args) {
     signal(SIGPIPE, SIG_IGN);
 #endif
 
-    init_transport_registration();
+    init_transport_registration(spawnIO);
 
 #if ADB_HOST
     HOST = 1;
     usb_vendors_init();
     printf("Before USB init\n");
-    usb_init();
+    usb_init(spawnD);
     printf("After USB init\n");
     local_init(DEFAULT_ADB_LOCAL_TRANSPORT_PORT);
+	printf("After local_init\n");
+	#ifndef NO_AUTH
     adb_auth_init();
+	#endif
+	printf("After auth_init\n");
+
 
     char local_name[30];
     build_local_name(local_name, sizeof(local_name), server_port);
     if(install_listener(local_name, "*smartsocket*", NULL, 0)) {
+        printf("FAILED to install listener\n");
         D("Error installing listener");
-        exit(1);
+        return -1;
+
+        // exit(1);
     }
 #else
     property_get("ro.adb.secure", value, "0");
@@ -1388,7 +1453,9 @@ void * server_thread(void * args) {
         char local_name[30];
         build_local_name(local_name, sizeof(local_name), server_port);
         if(install_listener(local_name, "*smartsocket*", NULL, 0)) {
-            exit(1);
+            printf("FAILED to install listener\n");
+            return -1;
+            // exit(1);
         }
     }
 
@@ -1431,17 +1498,9 @@ void * server_thread(void * args) {
 #endif
         start_logging();
     }
-    D("Event loop starting\n");
 
-    // -----------------------------------------
-    // Spawn a thread and hijack the event queue
-    // -----------------------------------------
-    /*adb_thread_t event_loop_thread_ptr;
-    if (adb_thread_create(&event_loop_thread_ptr, event_loop_thread, (void *)NULL)) {
-      fatal_errno("cannot create event loop thread");
-    }*/
     printf("Starting event loop...");
-    fdevent_loop();
+    fdevent_loop(exit_fd);
 
     // usb_cleanup();
 
@@ -1450,13 +1509,14 @@ void * server_thread(void * args) {
 
 int adb_main(int is_daemon, int server_port, int is_lib_call) {
 
-  struct adb_main_input * in = malloc(sizeof(struct adb_main_input));
+  struct adb_main_input * in = (struct adb_main_input*)malloc(sizeof(struct adb_main_input));
   in->is_daemon = is_daemon;
   in->server_port = server_port;
   in->is_lib_call = is_lib_call;
+  
 
-  adb_thread_t * server_thread_ptr = malloc(sizeof(adb_thread_t));
-  if(adb_thread_create(server_thread_ptr, server_thread, (void*)in)) {
+  adb_thread_t * server_thread_ptr = (adb_thread_t*)malloc(sizeof(adb_thread_t));
+  if(adb_thread_create(server_thread_ptr, server_thread, (void*)in, "server_thread")) {
     printf("Error creating server thread\n");
   }
   
@@ -1466,7 +1526,6 @@ int adb_main(int is_daemon, int server_port, int is_lib_call) {
 
   return 0;
 }
-
 
 #if ADB_HOST
 void connect_device(char* host, char* buffer, int buffer_size)
@@ -1716,7 +1775,7 @@ int handle_host_request(char *service, transport_type ttype, char* serial, int r
         char header[9];
         int buffer_size = format_listeners(NULL, 0);
         // Add one byte for the trailing zero.
-        char* buffer = malloc(buffer_size+1);
+        char* buffer = (char*)malloc(buffer_size+1);
         (void) format_listeners(buffer, buffer_size+1);
         snprintf(header, sizeof header, "OKAY%04x", buffer_size);
         writex(reply_fd, header, 8);
@@ -1827,7 +1886,7 @@ int main(int argc, char **argv)
       if (!strcmp(argv[1], "lib")) {
         adb_main(0, 5037, 1); 
         while (1) {
-          usleep(10000);
+          Sleep(10);
         }
       }
     }

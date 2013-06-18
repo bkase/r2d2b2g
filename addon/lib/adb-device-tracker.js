@@ -42,7 +42,7 @@ let AdbDeviceTracker = Class({
 
     socket.onerror = (function(event) {
       debug("trackDevices onerror: " + event.data);
-      this._cb("error");
+      // this._cb({ topic: "adb-track-devices-stop" });
       // Services.obs.notifyObservers(null, "adb-track-devices-stop", null);
     }).bind(this);
     
@@ -73,6 +73,7 @@ let AdbDeviceTracker = Class({
         // All devices got disconnected.
         for (let dev in this._devices) {
           this._devices[dev] = false;
+          this._cb({ topic: "adb-device-disconnected", dev: dev });
           // Services.obs.notifyObservers(null, "adb-device-disconnected", dev);
         }
       } else {

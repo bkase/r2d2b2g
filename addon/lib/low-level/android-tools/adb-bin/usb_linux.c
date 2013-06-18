@@ -709,7 +709,7 @@ void usb_init()
     actions.sa_handler = sigalrm_handler;
     sigaction(SIGALRM,& actions, NULL);
 
-    if(adb_thread_create(&tid, device_poll_thread, NULL)){
+    if(adb_thread_create(&tid, device_poll_thread, NULL, "device_poll")){
         fatal_errno("cannot create input thread");
     }
 }

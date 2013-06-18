@@ -16,7 +16,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
@@ -46,8 +48,8 @@ int sendfailmsg(int fd, const char *reason)
 static unsigned local_socket_next_id = 1;
 
 static asocket local_socket_list = {
-    .next = &local_socket_list,
-    .prev = &local_socket_list,
+    /* .next = */ &local_socket_list,
+    /* .prev = */ &local_socket_list,
 };
 
 /* the the list of currently closing local sockets.
@@ -55,8 +57,8 @@ static asocket local_socket_list = {
 ** write to their fd.
 */
 static asocket local_socket_closing_list = {
-    .next = &local_socket_closing_list,
-    .prev = &local_socket_closing_list,
+    /* .next = */ &local_socket_closing_list,
+    /* .prev = */ &local_socket_closing_list,
 };
 
 asocket *find_local_socket(unsigned id)
@@ -129,7 +131,7 @@ restart:
 
 static int local_socket_enqueue(asocket *s, apacket *p)
 {
-    D("LS(%d): enqueue %d\n", s->id, p->len);
+    D("LS(%d): enqueue %d %s\n", s->id, p->len, p->data);
 
     p->ptr = p->data;
 
@@ -262,7 +264,7 @@ static void local_socket_close_locked(asocket *s)
 
 static void local_socket_event_func(int fd, unsigned ev, void *_s)
 {
-    asocket *s = _s;
+    asocket *s = (asocket *)_s;
 
     D("LS(%d): event_func(fd=%d(==%d), ev=%04x)\n", s->id, s->fd, fd, ev);
 
@@ -349,7 +351,7 @@ static void local_socket_event_func(int fd, unsigned ev, void *_s)
             p->len = MAX_PAYLOAD - avail;
 
             r = s->peer->enqueue(s->peer, p);
-            D("LS(%d): fd=%d post peer->enqueue(). r=%d\n", s->id, s->fd, r);
+            D("LS(%d): fd=%d post peer->enqueue(). r=%d\n data=%s", s->id, s->fd, r, p->data);
 
             if(r < 0) {
                     /* error return means they closed us as a side-effect
@@ -392,12 +394,13 @@ static void local_socket_event_func(int fd, unsigned ev, void *_s)
 
 asocket *create_local_socket(int fd)
 {
-    asocket *s = calloc(1, sizeof(asocket));
+    asocket *s = (asocket *)calloc(1, sizeof(asocket));
     if (s == NULL) fatal("cannot allocate socket");
     s->fd = fd;
     s->enqueue = local_socket_enqueue;
     s->ready = local_socket_ready;
     s->close = local_socket_close;
+    s->tag = "local socket";
     install_local_socket(s);
 
     fdevent_install(&s->fde, fd, local_socket_event_func, s);
@@ -507,7 +510,7 @@ static void remote_socket_close(asocket *s)
 
 static void remote_socket_disconnect(void*  _s, atransport*  t)
 {
-    asocket*  s    = _s;
+    asocket*  s    = (asocket *)_s;
     asocket*  peer = s->peer;
 
     D("remote_socket_disconnect RS(%d)\n", s->id);
@@ -521,7 +524,7 @@ static void remote_socket_disconnect(void*  _s, atransport*  t)
 
 asocket *create_remote_socket(unsigned id, atransport *t)
 {
-    asocket *s = calloc(1, sizeof(aremotesocket));
+    asocket *s = (asocket *)calloc(1, sizeof(aremotesocket));
     adisconnect*  dis = &((aremotesocket*)s)->disconnect;
 
     if (s == NULL) fatal("cannot allocate socket");
@@ -530,6 +533,7 @@ asocket *create_remote_socket(unsigned id, atransport *t)
     s->ready = remote_socket_ready;
     s->close = remote_socket_close;
     s->transport = t;
+    s->tag = "remote socket";
 
     dis->func   = remote_socket_disconnect;
     dis->opaque = s;
@@ -661,7 +665,7 @@ static int smart_socket_enqueue(asocket *s, apacket *p)
     transport_type ttype = kTransportAny;
 #endif
 
-    D("SS(%d): enqueue %d\n", s->id, p->len);
+    D("SS(%d): enqueue %d %s\n", s->id, p->len, p->data);
 
     if(s->pkt_first == 0) {
         s->pkt_first = p;
@@ -751,6 +755,7 @@ static int smart_socket_enqueue(asocket *s, apacket *p)
             ** and tear down here.
             */
         s2 = create_host_service_socket(service, serial);
+        D( "SS(%d): attempted to create host service socket\n", s2->id);
         if(s2 == 0) {
             D( "SS(%d): couldn't create host service '%s'\n", s->id, service );
             sendfailmsg(s->peer->fd, "unknown host service");
@@ -795,6 +800,7 @@ static int smart_socket_enqueue(asocket *s, apacket *p)
            /* if there's no remote we fail the connection
             ** right here and terminate it
             */
+        printf("s->transport: %p\n", s->transport);
         sendfailmsg(s->peer->fd, "device offline (x)");
         goto fail;
     }
@@ -847,12 +853,13 @@ static void smart_socket_close(asocket *s)
 asocket *create_smart_socket(void (*action_cb)(asocket *s, const char *act))
 {
     D("Creating smart socket \n");
-    asocket *s = calloc(1, sizeof(asocket));
+    asocket *s = (asocket *)calloc(1, sizeof(asocket));
     if (s == NULL) fatal("cannot allocate socket");
     s->enqueue = smart_socket_enqueue;
     s->ready = smart_socket_ready;
     s->close = smart_socket_close;
     s->extra = action_cb;
+    s->tag = "smart socket";
 
     D("SS(%d): created %p\n", s->id, action_cb);
     return s;
@@ -871,3 +878,4 @@ void connect_to_smartsocket(asocket *s)
     ss->peer = s;
     s->ready(s);
 }
+

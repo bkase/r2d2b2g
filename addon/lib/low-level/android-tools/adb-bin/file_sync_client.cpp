@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#include "Stdafx.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include <sys/time.h>
+
 #include <time.h>
 #include <dirent.h>
 #include <limits.h>
@@ -30,6 +32,57 @@
 #include "adb.h"
 #include "adb_client.h"
 #include "file_sync_service.h"
+
+#ifdef WIN32
+#include "gettimeofday.h"
+#include <time.h>
+
+/* http://stackoverflow.com/questions/592448/c-how-to-set-file-permissions-cross-platform */
+typedef int mode_t;
+
+/// @Note If STRICT_UGO_PERMISSIONS is not defined, then setting Read for any
+///       of User, Group, or Other will set Read for User and setting Write
+///       will set Write for User.  Otherwise, Read and Write for Group and
+///       Other are ignored.
+///
+/// @Note For the POSIX modes that do not have a Windows equivalent, the modes
+///       defined here use the POSIX values left shifted 16 bits.
+
+const mode_t S_ISUID      = 0x08000000;           ///< does nothing
+const mode_t S_ISGID      = 0x04000000;           ///< does nothing
+const mode_t S_ISVTX      = 0x02000000;           ///< does nothing
+#undef S_IRUSR
+#undef S_IWUSR
+#undef S_IXUSR
+const mode_t S_IRUSR      = mode_t(_S_IREAD);     ///< read by user
+const mode_t S_IWUSR      = mode_t(_S_IWRITE);    ///< write by user
+const mode_t S_IXUSR      = 0x00400000;           ///< does nothing
+#   ifndef STRICT_UGO_PERMISSIONS
+#undef S_IRGRP
+#undef S_IWGRP
+#undef S_IXGRP
+#undef S_IROTH
+#undef S_IWOTH
+#undef S_IXOTH
+const mode_t S_IRGRP      = mode_t(_S_IREAD);     ///< read by *USER*
+const mode_t S_IWGRP      = mode_t(_S_IWRITE);    ///< write by *USER*
+const mode_t S_IXGRP      = 0x00080000;           ///< does nothing
+const mode_t S_IROTH      = mode_t(_S_IREAD);     ///< read by *USER*
+const mode_t S_IWOTH      = mode_t(_S_IWRITE);    ///< write by *USER*
+const mode_t S_IXOTH      = 0x00010000;           ///< does nothing
+#   else
+static const mode_t S_IRGRP      = 0x00200000;           ///< does nothing
+static const mode_t S_IWGRP      = 0x00100000;           ///< does nothing
+static const mode_t S_IXGRP      = 0x00080000;           ///< does nothing
+static const mode_t S_IROTH      = 0x00040000;           ///< does nothing
+static const mode_t S_IWOTH      = 0x00020000;           ///< does nothing
+static const mode_t S_IXOTH      = 0x00010000;           ///< does nothing
+#   endif
+static const mode_t MS_MODE_MASK = 0x0000ffff;           ///< low word
+
+#else
+#include <sys/time.h>
+#endif
 
 
 static unsigned total_bytes;
@@ -310,6 +363,8 @@ static int sync_send(int fd, const char *lpath, const char *rpath,
     snprintf(tmp, sizeof(tmp), ",%d", mode);
     r = strlen(tmp);
 
+    // we don't need to verify apks
+#if 0
     if (verifyApk) {
         int lfd;
         zipfile_t zip;
@@ -366,6 +421,7 @@ static int sync_send(int fd, const char *lpath, const char *rpath,
             return 1;
         }
     }
+#endif
 
     msg.req.id = ID_SEND;
     msg.req.namelen = htoll(len + r);
@@ -425,7 +481,7 @@ static int mkdirs(char *name)
     char *x = name + 1;
 
     for(;;) {
-        x = adb_dirstart(x);
+        x = strdup(adb_dirstart(x));
         if(x == 0) return 0;
         *x = 0;
         ret = adb_mkdir(name, 0775);
@@ -577,7 +633,7 @@ copyinfo *mkcopyinfo(const char *spath, const char *dpath,
     int ssize = slen + nlen + 2;
     int dsize = dlen + nlen + 2;
 
-    copyinfo *ci = malloc(sizeof(copyinfo) + ssize + dsize);
+    copyinfo *ci = (copyinfo *)malloc(sizeof(copyinfo) + ssize + dsize);
     if(ci == 0) {
         fprintf(stderr,"out of memory\n");
         abort();
@@ -681,14 +737,14 @@ static int copy_local_dir_remote(int fd, const char *lpath, const char *rpath, i
     if((lpath[0] == 0) || (rpath[0] == 0)) return -1;
     if(lpath[strlen(lpath) - 1] != '/') {
         int  tmplen = strlen(lpath)+2;
-        char *tmp = malloc(tmplen);
+        char *tmp = (char *)malloc(tmplen);
         if(tmp == 0) return -1;
         snprintf(tmp, tmplen, "%s/",lpath);
         lpath = tmp;
     }
     if(rpath[strlen(rpath) - 1] != '/') {
         int tmplen = strlen(rpath)+2;
-        char *tmp = malloc(tmplen);
+        char *tmp = (char *)malloc(tmplen);
         if(tmp == 0) return -1;
         snprintf(tmp, tmplen, "%s/",rpath);
         rpath = tmp;
@@ -780,7 +836,7 @@ int do_sync_push(const char *lpath, const char *rpath, int verifyApk)
                 name++;
             }
             int  tmplen = strlen(name) + strlen(rpath) + 2;
-            char *tmp = malloc(strlen(name) + strlen(rpath) + 2);
+            char *tmp = (char *)malloc(strlen(name) + strlen(rpath) + 2);
             if(tmp == 0) return 1;
             snprintf(tmp, tmplen, "%s/%s", rpath, name);
             rpath = tmp;
@@ -880,14 +936,14 @@ static int copy_remote_dir_local(int fd, const char *rpath, const char *lpath,
     if (rpath[0] == 0 || lpath[0] == 0) return -1;
     if (rpath[strlen(rpath) - 1] != '/') {
         int  tmplen = strlen(rpath) + 2;
-        char *tmp = malloc(tmplen);
+        char *tmp = (char *)malloc(tmplen);
         if (tmp == 0) return -1;
         snprintf(tmp, tmplen, "%s/", rpath);
         rpath = tmp;
     }
     if (lpath[strlen(lpath) - 1] != '/') {
         int  tmplen = strlen(lpath) + 2;
-        char *tmp = malloc(tmplen);
+        char *tmp = (char *)malloc(tmplen);
         if (tmp == 0) return -1;
         snprintf(tmp, tmplen, "%s/", lpath);
         lpath = tmp;
@@ -974,7 +1030,7 @@ int do_sync_pull(const char *rpath, const char *lpath)
                     name++;
                 }
                 int  tmplen = strlen(name) + strlen(lpath) + 2;
-                char *tmp = malloc(tmplen);
+                char *tmp = (char *)malloc(tmplen);
                 if(tmp == 0) return 1;
                 snprintf(tmp, tmplen, "%s/%s", lpath, name);
                 lpath = tmp;

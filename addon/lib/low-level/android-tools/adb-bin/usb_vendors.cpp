@@ -259,9 +259,11 @@ int get_adb_usb_ini(char* buff, size_t len)
     if (home != NULL) {
         return build_path(buff, len, "%s\\%s\\%s", home);
     } else {
-        char path[MAX_PATH];
+        WCHAR path[MAX_PATH];
+        char path_[MAX_PATH];
         SHGetFolderPath( NULL, CSIDL_PROFILE, NULL, 0, path);
-        return build_path(buff, len, "%s\\%s\\%s", path);
+        wcstombs(path_, path, MAX_PATH);
+        return build_path(buff, len, "%s\\%s\\%s", path_);
     }
 #else
     const char* home = getenv("HOME");
