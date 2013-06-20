@@ -80,17 +80,15 @@ function debug(aStr) {
 }
 
 let ready = false;
-let didRunInitially = false;
 const psRegexNix = /.*? \d+ .*? .*? \d+\s+\d+ .*? .*? .*? .*? adb .*fork\-server/;
 const psRegexWin = /adb.exe.*/;
 
 this.ADB = {
-  get didRunInitially() didRunInitially,
-  set didRunInitially(newVal) { didRunInitially = newVal },
   get ready() ready,
   set ready(newVal) { ready = newVal },
 
   init: function adb_init() {
+    this.didRunInitially = false;
     debug("init");
     let platform = Services.appinfo.OS;
 
