@@ -47,6 +47,7 @@
       delete e.data._count;
 
       if (cb) {
+        delete this.msgToEmitCb[slug]; // free the callback
         cb(e.data);
       } else {
         let cbs = this.msgToCallbacksRespond[msg];
@@ -84,11 +85,11 @@
       // on the main thread
       this.runOnPeerThread(function() {
         // start a log listener
-        this.listen("log", function log(args) {
+        let idx = this.listen("log", function log(args) {
           console.log.apply(console, ["Thread: "].concat(Array.prototype.slice.call(args, 0)));
         });
-        // add ourselves to __workers (to be terminated later)
-        this.context.__workers.push(this);
+        // add ourselves + log idx to __workers (to be terminated later)
+        this.context.__workers.push([this, idx]);
       });
     } else {
 
@@ -126,22 +127,54 @@
       return this;
     },
 
+    once: function once(msg, cb) {
+      let idx;
+      // TODO: do we need to preserve this in cb?
+      let that = this;
+      idx = this.listen(msg, function ondata(d) {
+        // free the listener
+        delete that.msgToCallbacksRespond[msg][idx];
+        return cb(d);
+      });
+    },
+
+    onceAndForget: function onceAndForget(msg, cb) {
+      let idx;
+      // TODO: do we need to preserve this in cb?
+      let that = this;
+      idx = this.listenAndForget(msg, function ondata(d) {
+        delete that.msgToCallbacksFree[msg][idx];
+        return cb(d);
+      });
+    },
+
     listen: function listen(msg, cb) {
       if (!this.msgToCallbacksRespond[msg]) {
         this.msgToCallbacksRespond[msg] = [];
       }
 
-      this.msgToCallbacksRespond[msg].push(cb);
-      return this;
+      let idx = this.msgToCallbacksRespond[msg].push(cb);
+      return idx;
     },
 
+    // The listen* functions require a freeListener to prevent event listener leaks
     listenAndForget: function listenAndForget(msg, cb) {
       if (!this.msgToCallbacksFree[msg]) {
         this.msgToCallbacksFree[msg] = [];
       }
 
-      this.msgToCallbacksFree[msg].push(cb);
-      return this;
+      let idx = this.msgToCallbacksFree[msg].push(cb);
+      return idx;
+    },
+
+    freeListener: function freeListener(msg, idx) {
+      console.log("Freeing: " + msg + ", " + idx);
+      if (this.msgToCallbacksRespond[msg]) {
+        delete this.msgToCallbacksRespond[msg][idx];
+      }
+      if (this.msgToCallbacksFree[msg]) {
+        delete this.msgToCallbacksFree[msg][idx];
+      }
     },
 
     terminate: function terminate() {
@@ -149,7 +182,7 @@
       return this;
     },
 
-    runOnPeerThread: function runOnThread(task /*, serializableArgs */) {
+    runOnPeerThread: function runOnThread(task /*, serializableArgs... */) {
       let serializableArgs = Array.prototype.slice.call(arguments, 1);
       let args = JSON.stringify(serializableArgs.map(JSON.stringify));
 

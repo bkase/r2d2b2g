@@ -18,7 +18,7 @@ const console = new Console(worker);
 let I = null;
 let libadb = null;
 
-worker.listen("init", function({ libPath, threadName, argTypesStrings, argStrings }) {
+worker.once("init", function({ libPath, threadName, argTypesStrings, argStrings }) {
   I = new Instantiator();
 
   argTypesStrings = argTypesStrings || [];

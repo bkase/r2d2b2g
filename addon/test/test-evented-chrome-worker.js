@@ -8,7 +8,7 @@ const URL_PREFIX = module.uri.replace(/test\-evented\-chrome\-worker\.js/, "");
 const WORKER_URL = URL_PREFIX + "evented-chrome-worker-worker.js";
 
 exports["test EventedChromeWorker"] = function (assert, done) {
-  let worker = new EventedChromeWorker(WORKER_URL, true);
+  let worker = new EventedChromeWorker(WORKER_URL, "worker-worker", { __workers: [] });
   let x = 0;
   worker.emit("fromHost", { a: 1 }, function({ b }) {
     console.log("got callback from sample emit: " + b);
@@ -17,7 +17,7 @@ exports["test EventedChromeWorker"] = function (assert, done) {
     wait(x);
   });
 
-  worker.listen("fromWorker", function({ c }) {
+  worker.once("fromWorker", function({ c }) {
     console.log("got listen event `fromWorker`: " + c);
     assert.ok(c == 3, "Listening for messages works");
     x++;

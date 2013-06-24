@@ -25,7 +25,7 @@ const struct_func_carrier =
   ]);
 
 let shouldKillNow = 0;
-worker.listen("init", function({ libPath }) {
+worker.once("init", function({ libPath }) {
   I = new Instantiator();
 
   libadb = ctypes.open(libPath);

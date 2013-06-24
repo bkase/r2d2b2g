@@ -7,7 +7,7 @@ const EVENTED_CHROME_WORKER = URL_PREFIX + "../lib/evented-chrome-worker.js";
 
 importScripts(EVENTED_CHROME_WORKER);
 
-let worker = new EventedChromeWorker(null, false);
+let worker = new EventedChromeWorker(null);
 
 const console = {
   log: function() {
@@ -15,7 +15,7 @@ const console = {
   }
 };
 
-worker.listen("fromHost", function({ a }) {
+worker.once("fromHost", function({ a }) {
   console.log("Got fromHost: " + a);
   return { b: 2 };
 });

@@ -22,6 +22,7 @@ const self = require("self");
 const { platform } = require("system");
 
 let serverWorker, ioWorker, utilWorker;
+// the context is used as shared state between EventedChromeWorker runOnPeerThread calls and this module
 let context = { __workers: [] // this array is populated automatically by EventedChromeWorker
               };
 
@@ -51,7 +52,7 @@ exports.startAdbInBackground = function(deviceTrackerCb) {
     });
   });
 
-  serverWorker.listenAndForget("kill-server-fd", function({ fd }) {
+  serverWorker.onceAndForget("kill-server-fd", function({ fd }) {
     server_die_fd = fd;
   });
 
@@ -121,19 +122,16 @@ exports.shell = function(shellCommand) {
       return;
     }
 
-    ioWorker.emit("readFully", { fd: fd, tag: service }, function() {
-      console.log("Started reading fd: " + fd);
-    });
-
-    ioWorker.listenAndForget(service + ":data", function({ data }) {
-      // console.log("IO Got: " + data);
+    let msg = service + ":data";
+    let idx = ioWorker.listenAndForget(msg, function({ data }) {
       result += data;
     });
 
-    ioWorker.listenAndForget(service + ":done", function() {
-      console.log("IO got all the data! for " + service);
+    ioWorker.emit("readFully", { fd: fd, tag: service }, function({ ret }) {
+      ioWorker.freeListener(msg, idx);
       deferred.resolve(result);
     });
+
   });
 
   return deferred.promise;
@@ -163,13 +161,15 @@ exports.close = function(cb) {
   let workersToClean = [serverWorker, ioWorker, utilWorker];
   timers.setTimeout(function() {
 
-    // NOTE: the input thread will be terminated safely by the kill-ioPump message to the util worker
+    // NOTE: the output thread should be manually terminated, the input thread 
+    //       will be terminated safely by the kill-ioPump message to 
+    //       the util worker
     context.outputThread.terminate();
-    utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killioack() {
+    utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
       // NOTE: this call will return immediately for now, but it needs at most 100ms to close
-      utilWorker.emit("kill-deviceLoop", { }, function killdevack() {
+      utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
         // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
-        ioWorker.emit("writeFully", { fd: server_die_fd }, function writeack(err) {
+        ioWorker.emit("writeFully", { fd: server_die_fd }, function writeAck(err) {
           console.log("Finished writing to die_fd ret=" + JSON.stringify(err));
           timers.setTimeout(function() {
             workersToClean.forEach(function(w) {
@@ -187,8 +187,11 @@ exports.close = function(cb) {
 
   function waitForAll(x) {
     if (x >= workersToClean.length) {
-      context.__workers.forEach(function(w) console.log("Killing Worker: " + w.tag) );
-      context.__workers.forEach(function(w) w.terminate());
+      context.__workers.forEach(function([w, logi]) {
+        console.log("Killing Worker: " + w.tag) 
+        w.freeListener("log", logi);
+        w.terminate();
+      });
       console.log("ALL workers are terminated");
       cb();
     }

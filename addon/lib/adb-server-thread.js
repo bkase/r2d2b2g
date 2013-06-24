@@ -37,7 +37,7 @@ const pthread_t = ctypes.void_t;
 const sig_t = ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, [ctypes.int]).ptr;
 
 console.log("Did the magic work?");
-worker.listen("init", function({ libPath }) {
+worker.once("init", function({ libPath }) {
 
   libPath_ = libPath;
 
@@ -76,7 +76,7 @@ worker.listen("init", function({ libPath }) {
             }, libadb);
 });
 
-worker.listen("start", function({ port }) {
+worker.once("start", function({ port }) {
   //let main = I.use("adb_main");
   let main = I.use("main_server");
   let malloc = I.use("malloc_");

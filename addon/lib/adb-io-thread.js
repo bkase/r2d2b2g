@@ -19,7 +19,7 @@ const console = new Console(worker);
 
 let I = null;
 let libadb = null;
-worker.listen("init", function({ libPath }) {
+worker.once("init", function({ libPath }) {
   I = new Instantiator();
 
   libadb = ctypes.open(libPath);
@@ -37,6 +37,8 @@ worker.listen("init", function({ libPath }) {
             }, libadb);
 });
 
+// TODO: Should these API listeners be removed?
+//       For now, I'm assuming that terminating the worker frees the memory here
 worker.listen("readFully", function({ fd, tag }) {
   let read = I.use("read_fd");
   let size = 4096;
@@ -47,19 +49,17 @@ worker.listen("readFully", function({ fd, tag }) {
     let len = read(fd, buffer, size-1);
     buffer[len] = 0; // null-terminate the string
 
-    // TODO: we don't need done events, just return and the callback will fire
     if (len == 0) {
-      worker.emitAndForget(tag + ":done", { });
-      break;
+      break; // we're done
     } else {
       worker.emitAndForget(tag + ":data", { data: buffer.readString() });
     }
   }
 
-  return 0;
+  return { ret: 0 };
 });
 
-// TODO: don't hardcode
+// TODO: don't hardcode what to write
 worker.listen("writeFully", function({ fd /*, toWriteS*/ }) {
   let write = I.use("write_fd");
   let len = 4;
@@ -88,6 +88,7 @@ worker.listen("cleanup", function() {
   console.log("IO: Cleaning up");
   if (libadb) {
     libadb.close();
+    libadb = null;
   }
 });
 
