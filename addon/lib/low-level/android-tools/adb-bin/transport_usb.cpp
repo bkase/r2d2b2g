@@ -106,6 +106,7 @@ static void remote_close(atransport *t)
 
 static void remote_kick(atransport *t)
 {
+  printf("remote_kick called\n");
     usb_kick(t->usb);
 }
 

@@ -110,6 +110,7 @@ worker.once("start", function({ port }) {
   input.contents.spawnIO = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.void_t.ptr]).ptr(spawnIOfn);
 
 
+  // NOTE: on linux this will not be called
   let spawnDfn = function() {
     console.log("spawnD was actually called from C!!!");
     worker.runOnPeerThread(function spawnD_task(libPathS, workerURIS) {

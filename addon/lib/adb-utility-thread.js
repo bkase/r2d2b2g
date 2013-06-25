@@ -17,9 +17,11 @@ const console = new Console(worker);
 
 let I = null;
 let libadb = null;
+let platform_ = null;
 const pthread_t = ctypes.void_t;
 const atransport = ctypes.void_t; // TODO: opaque struct
-worker.listen("init", function({ libPath }) {
+worker.listen("init", function({ libPath, platform }) {
+  platform_ = platform;
 
   I = new Instantiator();
 
@@ -35,15 +37,17 @@ worker.listen("init", function({ libPath }) {
               args: [ctypes.char.ptr] // service
             }, libadb);
 
-  I.declare({ name: "kill_device_loop",
-              returns: ctypes.void_t,
-              args: []
-            }, libadb);
-
   I.declare({ name: "on_kill_io_pump",
               returns: ctypes.void_t,
               args: [ atransport.ptr ]
             }, libadb);
+
+  if (platform === "darwin") {
+    I.declare({ name: "kill_device_loop",
+                returns: ctypes.void_t,
+                args: []
+              }, libadb);
+  }
 });
 
 worker.listen("cleanup", function() {
@@ -64,7 +68,10 @@ worker.listen("query", function({ service }) {
 });
 
 worker.listen("kill-deviceLoop", function({ }) {
-  I.use("kill_device_loop")();
+  // if we're not on OSX, just terminating the worker is fine
+  if (platform_ === "darwin") {
+    I.use("kill_device_loop")();
+  }
 });
 
 worker.listen("kill-ioPump", function({ t_ptrS }) {

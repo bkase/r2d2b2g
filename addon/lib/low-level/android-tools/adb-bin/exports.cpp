@@ -18,7 +18,9 @@ int DLL_EXPORT main_server(struct adb_main_input * input_args);
 int DLL_EXPORT usb_monitor();
 int DLL_EXPORT device_input_thread(atransport *);
 int DLL_EXPORT device_output_thread(atransport *);
+#ifdef __APPLE__
 void DLL_EXPORT kill_device_loop();
+#endif
 void DLL_EXPORT on_kill_io_pump(atransport * t);
 
 EXTERN_C_START
@@ -39,9 +41,11 @@ EXTERN_C_START
     return adb_query(service);
   }
 
+#ifdef __APPLE__
   void kill_device_loop() {
     should_kill_device_loop();
   }
+#endif
 
   void on_kill_io_pump(atransport * t) {
     kill_io_pump(t);
@@ -86,16 +90,24 @@ EXTERN_C_START
   }
 
 #ifdef __APPLE__
-  int usb_monitor(struct func_carrier * args) {
-    return RunLoopThread((void *)args);
+  int usb_monitor() {
+    return RunLoopThread(NULL);
+  }
+#endif
+// on linux we can safely kill this thread with Worker::terminate
+#ifdef __linux__
+  int usb_monitor() {
+    return device_poll_thread(NULL);
   }
 #endif
 
   int device_input_thread(atransport * t) {
+    printf("SPAWNED device_input_thread\n");
     return input_thread((void *)t);
   }
 
   int device_output_thread(atransport * t) {
+    printf("SPAWNED device_output_thread\n");
     return output_thread((void *)t);
   }
 EXTERN_C_END

@@ -74,14 +74,19 @@ kick_transport(atransport*  t)
     {
         int  kicked;
 
+        D("Before lock\n");
         adb_mutex_lock(&transport_lock);
+        D("in lock\n");
         kicked = t->kicked;
         if (!kicked)
             t->kicked = 1;
+        D("unlocking\n");
         adb_mutex_unlock(&transport_lock);
 
-        if (!kicked)
+        if (!kicked) {
+            D("calling t->kick\n");
             t->kick(t);
+        }
     }
 }
 
@@ -255,7 +260,9 @@ void send_packet(apacket *p, atransport *t)
 static void handle_output_oops(atransport * t) {
     D("%s: transport output thread is exiting\n", t->serial);
     kick_transport(t);
+    D("After kick, before unref\n");
     transport_unref(t);
+    D("After unref\n");
 }
 
 static void handle_output_offline(atransport * t) {
@@ -273,6 +280,8 @@ static void handle_output_offline(atransport * t) {
     }
 }
 
+static int started_output_cleanup = 0;
+static int ended_output_cleanup = 0;
 // this function should be called after the output thread is
 //    terminated from JS (i.e. doesn't execute
 //
@@ -282,6 +291,15 @@ static void handle_output_offline(atransport * t) {
 //    (and other sorts of bad things could happen)
 //
 void kill_io_pump(atransport * t) {
+    if (started_output_cleanup && !ended_output_cleanup) {
+      printf("******* BUG: Undefined behavior in race detected!\n");
+      return;
+    }
+
+    if (ended_output_cleanup) {
+      return; // nothing to do
+    }
+
     handle_output_offline(t);
     handle_output_oops(t);
 }
@@ -335,9 +353,11 @@ void *output_thread(void *_t)
         }
     }
 
+    started_output_cleanup = 1;
     handle_output_offline(t);
 oops:
     handle_output_oops(t);
+    ended_output_cleanup = 1;
     return NULL;
 }
 
@@ -463,7 +483,6 @@ device_tracker_close( asocket*  socket )
 static int
 device_tracker_enqueue( asocket*  socket, apacket*  p )
 {
-    printf("Device tracker enqueue\n");
     /* you can't read from a device tracker, close immediately */
     put_apacket(p);
     device_tracker_close(socket);

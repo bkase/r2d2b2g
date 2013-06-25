@@ -324,6 +324,10 @@ this.ADB = {
     return { length: length, data: decoder.decode(text) }
   },
 
+  close: function close(cb) {
+    adbpure.close(cb);
+  },
+
   // Start tracking devices connecting and disconnecting from the host.
   // We can't reuse runCommand here because we keep the socket alive.
   // @return The socket used.

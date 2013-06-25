@@ -518,6 +518,7 @@ void usb_kick(usb_handle *h)
             ** This is a workaround for that problem.
             */
             if (h->reaper_thread) {
+                printf("****************** BUG BUG BUG\n");
                 pthread_kill(h->reaper_thread, SIGALRM);
             }
 
@@ -698,9 +699,10 @@ static void sigalrm_handler(int signo)
     // don't need to do anything here
 }
 
-void usb_init()
+void usb_init(int (*spawnD)())
 {
-    adb_thread_t tid;
+    // spawnD();
+    adb_thread_t * tid = malloc(sizeof(adb_thread_t));
     struct sigaction    actions;
 
     memset(&actions, 0, sizeof(actions));
@@ -709,7 +711,7 @@ void usb_init()
     actions.sa_handler = sigalrm_handler;
     sigaction(SIGALRM,& actions, NULL);
 
-    if(adb_thread_create(&tid, device_poll_thread, NULL, "device_poll")){
+    if(adb_thread_create(tid, device_poll_thread, NULL, "device_poll")){
         fatal_errno("cannot create input thread");
     }
 }

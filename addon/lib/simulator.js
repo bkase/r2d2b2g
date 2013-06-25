@@ -62,11 +62,17 @@ let simulator = module.exports = {
    * Unload the module.
    */
   unload: function unload(reason) {
+    // TODO: This doesn't work because unload doesn't pop the event queue (will we have to synchronize this?)
+    ADB.close(function closed() {
+      console.log("Terminated ADB successfully");
+    });
+
     // Kill the Simulator and ADB processes, so they don't continue to run
     // unnecessarily if the user is quitting Firefox or disabling the addon;
     // and so they close their filehandles if the user is updating the addon,
     // which we need to do on Windows to replace the files.
     this.kill();
+
     if (ADB.didRunInitially) {
       ADB.kill(Runtime.OS == "WINNT" ? true : false /* sync */);
     }

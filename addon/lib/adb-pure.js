@@ -23,7 +23,8 @@ const { platform } = require("system");
 
 let serverWorker, ioWorker, utilWorker;
 // the context is used as shared state between EventedChromeWorker runOnPeerThread calls and this module
-let context = { __workers: [] // this array is populated automatically by EventedChromeWorker
+let context = { __workers: [], // this array is populated automatically by EventedChromeWorker
+                platform: platform
               };
 
 console.log("Platform: " + platform);
@@ -71,7 +72,7 @@ exports.startAdbInBackground = function(deviceTrackerCb) {
   }, 2000);
 
 
-  [ioWorker, utilWorker].forEach(function(w) w.emit("init", { libPath: libPath }, function initack() {
+  [ioWorker, utilWorker].forEach(function(w) w.emit("init", { libPath: libPath, platform: context.platform }, function initack() {
     console.log("Inited worker");
   }));
 };
@@ -178,16 +179,20 @@ exports.close = function(cb) {
   console.log("Closing - ");
   let x = 1;
   stopTrackingDevices();
+  console.log("After stopTrackingDevices");
   let workersToClean = [serverWorker, ioWorker, utilWorker];
   timers.setTimeout(function() {
 
     // NOTE: the output thread should be manually terminated, the input thread
     //       will be terminated safely by the kill-ioPump message to
     //       the util worker
+    console.log("Terminating outputThread");
     context.outputThread.terminate();
     utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
-      // NOTE: this call will return immediately for now, but it needs at most 100ms to close
+      console.log("killIOAck received");
+      // NOTE: this call will return immediately for now, but it needs at most 100ms to close on OSX
       utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
+        console.log("killDevAck received");
         // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
         ioWorker.emit("writeFully", { fd: server_die_fd }, function writeAck(err) {
           console.log("Finished writing to die_fd ret=" + JSON.stringify(err));

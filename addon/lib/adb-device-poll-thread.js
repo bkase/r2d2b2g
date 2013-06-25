@@ -25,27 +25,21 @@ const struct_func_carrier =
   ]);
 
 let shouldKillNow = 0;
-worker.once("init", function({ libPath }) {
+worker.once("init", function({ libPath, platform }) {
   I = new Instantiator();
 
   libadb = ctypes.open(libPath);
 
   I.declare({ name: "usb_monitor",
               returns: ctypes.int,
-              // should_kill
-              args: [ struct_func_carrier.ptr ]
+              args: []
             }, libadb);
 
-  let input = struct_func_carrier();
-  let shouldKill = function shouldKill() {
-    console.log("Sending back: " + shouldKillNow);
-    return shouldKillNow;
+  // on Linux, fallback to pthreads here
+  if (platform !== "linux") {
+    I.use("usb_monitor")();
+    console.log("usb_monitor returned!");
   }
-
-  input.should_kill = CFRunLoopTimerCallback(shouldKill);
-
-  I.use("usb_monitor")(input.address());
-  console.log("usb_monitor returned!");
 });
 
 worker.listen("cleanup", function() {
