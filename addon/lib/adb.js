@@ -25,7 +25,7 @@ if (COMMONJS) {
   subprocess = require("subprocess");
   file = require("file");
   env = require("api-utils/environment").env;
-  // adbpure = require("adb-pure");
+  adbpure = require("adb-pure");
 } else {
   Cu.import("chrome://b2g-remote/content/subprocess.jsm");
   let { Loader, Require } =
@@ -162,9 +162,15 @@ this.ADB = {
         }
         debug("Didn't find ADB process running, restarting");
 
-        this.didRunInitially = true;
-        // adbpure.init();
-        // adbpure.startInBackground();
+        this.didRunInitially = false;
+        adbpure.startAdbInBackground(function(data) {
+          if (data.topic === "adb-device-connected") {
+            Services.obs.notifyObservers(null, data.topic, data.dev);
+          } else if (data.topic === "adb-device-disconnected") {
+            Services.obs.notifyObservers(null, data.topic, data.dev);
+          }
+        });
+
       }).bind(this));
   },
 
@@ -322,7 +328,8 @@ this.ADB = {
   // We can't reuse runCommand here because we keep the socket alive.
   // @return The socket used.
   trackDevices: function adb_trackDevices() {
-    debug("trackDevices");
+    return;
+    /*debug("trackDevices");
     let socket = this._connect();
     let waitForFirst = true;
     let devices = {};
@@ -396,11 +403,13 @@ this.ADB = {
     }.bind(this);
 
     return socket;
+    */
   },
 
   // Sends back an array of device names.
   listDevices: function adb_listDevices() {
-    debug("listDevices");
+    return adbpure.listDevices();
+    /*debug("listDevices");
     let deferred = Promise.defer();
 
     let promise = this.runCommand("host:devices");
@@ -418,12 +427,17 @@ this.ADB = {
         });
         return res;
       }
-    );
+    );*/
   },
 
   // sends adb forward tcp:aPort tcp:6000
   forwardPort: function adb_forwardPort(aPort) {
-    debug("forwardPort " + aPort);
+    return adbpure.forwardPort(aPort).then(
+        function onSuccess(data) {
+          return data;
+        }
+    );
+    /*debug("forwardPort " + aPort);
     // <host-prefix>:forward:<local>;<remote>
 
     let promise = this.runCommand("host:forward:tcp:" + aPort + ";tcp:6000");
@@ -432,7 +446,7 @@ this.ADB = {
       function onSuccess(data) {
         return data;
       }
-    );
+    );*/
   },
 
   // Checks a file mode.
@@ -536,6 +550,8 @@ this.ADB = {
   // aFrom and aDest are full paths.
   // XXX we should STAT the remote path before sending.
   push: function adb_pull(aFrom, aDest) {
+    return adbpure.pushFile(aFrom, aDest);
+    /*
     let deferred = Promise.defer();
     let socket;
     let state;
@@ -704,6 +720,7 @@ this.ADB = {
     );
 
     return deferred.promise;
+    */
   },
 
   // Asynchronously runs an adb command.

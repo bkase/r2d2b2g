@@ -168,7 +168,6 @@
     },
 
     freeListener: function freeListener(msg, idx) {
-      console.log("Freeing: " + msg + ", " + idx);
       if (this.msgToCallbacksRespond[msg]) {
         delete this.msgToCallbacksRespond[msg][idx];
       }

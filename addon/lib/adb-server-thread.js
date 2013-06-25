@@ -33,8 +33,6 @@ const struct_adb_main_input =
     { spawnIO: ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.void_t.ptr]).ptr },
     { spawnD: ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr }
   ]);
-const pthread_t = ctypes.void_t;
-const sig_t = ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, [ctypes.int]).ptr;
 
 console.log("Did the magic work?");
 worker.once("init", function({ libPath }) {
@@ -61,12 +59,6 @@ worker.once("init", function({ libPath }) {
               returns: ctypes.void_t,
               // ptr
               args: [ctypes.void_t.ptr]
-            }, libadb);
-
-  I.declare({ name: "get_tid",
-              returns: pthread_t.ptr,
-              // pthread
-              args: []
             }, libadb);
 
   I.declare({ name: "socket_pipe",
@@ -136,7 +128,6 @@ worker.once("start", function({ port }) {
 
   let pipe = ctypes.ArrayType(ctypes.int, 2)();
   I.use("socket_pipe")(pipe);
-  console.log("pipe[0]: " + pipe[0] + ", [1]" + pipe[1]);
   worker.emitAndForget("kill-server-fd", { fd: pipe[0] });
 
   input.contents.exit_fd = pipe[1];

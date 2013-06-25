@@ -1300,7 +1300,7 @@ let simulator = module.exports = {
     console.log("simulator.observe: " + topic);
     switch (topic) {
       case "adb-ready":
-        ADB.trackDevices();
+        // ADB.trackDevices();
         break;
       case "adb-device-connected":
         deviceConnected = true;

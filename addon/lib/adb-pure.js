@@ -104,16 +104,7 @@ exports.pushFile = function(srcPath, destPath) {
       });
 };
 
-exports.shell = function(shellCommand) {
-  let deferred = Promise.defer();
-  if (!hasDevice) {
-    deferred.reject(DEVICE_NOT_CONNECTED);
-    return deferred.promise;
-  }
-
-  console.log("Executing: " + shellCommand);
-
-  let service = "shell:" + shellCommand;
+function queryService(service, deferred) {
   let result = "";
   utilWorker.emit("query", { service: service }, function({ fd }) {
     if (fd < 0) {
@@ -133,6 +124,35 @@ exports.shell = function(shellCommand) {
     });
 
   });
+}
+
+exports.forwardPort = function(port) {
+  let deferred = Promise.defer();
+  if (!hasDevice) {
+    deferred.reject(DEVICE_NOT_CONNECTED);
+    return deferred.promise;
+  }
+
+  // <host-prefix>:forward:<local>;<remote>
+  let service = "host:forward:tcp:" + port + ";tcp:6000";
+
+  queryService(service, deferred);
+
+  return deferred.promise;
+};
+
+exports.shell = function(shellCommand) {
+  let deferred = Promise.defer();
+  if (!hasDevice) {
+    deferred.reject(DEVICE_NOT_CONNECTED);
+    return deferred.promise;
+  }
+
+  console.log("Executing: " + shellCommand);
+
+  let service = "shell:" + shellCommand;
+
+  queryService(service, deferred);
 
   return deferred.promise;
 }
@@ -161,8 +181,8 @@ exports.close = function(cb) {
   let workersToClean = [serverWorker, ioWorker, utilWorker];
   timers.setTimeout(function() {
 
-    // NOTE: the output thread should be manually terminated, the input thread 
-    //       will be terminated safely by the kill-ioPump message to 
+    // NOTE: the output thread should be manually terminated, the input thread
+    //       will be terminated safely by the kill-ioPump message to
     //       the util worker
     context.outputThread.terminate();
     utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
@@ -188,7 +208,7 @@ exports.close = function(cb) {
   function waitForAll(x) {
     if (x >= workersToClean.length) {
       context.__workers.forEach(function([w, logi]) {
-        console.log("Killing Worker: " + w.tag) 
+        console.log("Killing Worker: " + w.tag)
         w.freeListener("log", logi);
         w.terminate();
       });
