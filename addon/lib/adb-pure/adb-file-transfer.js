@@ -13,7 +13,7 @@ const { Cu, Cc, Ci } = require("chrome");
 
 const Promise = require("sdk/core/promise");
 const { Class } = require("sdk/core/heritage");
-const { AdbClient } = require("adb-client");
+const { AdbClient } = require("adb-pure/adb-client");
 let { TextEncoder, TextDecoder } = Cu.import("resource://gre/modules/Services.jsm");
 /* const OS = */ Cu.import("resource://gre/modules/osfile.jsm");
 

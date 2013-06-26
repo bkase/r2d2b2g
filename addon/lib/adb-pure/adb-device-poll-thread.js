@@ -23,13 +23,15 @@ const console = new Console(worker);
 let I = null;
 let libadb = null;
 
-worker.once("init", function({ libPath, platform }) {
+function debug() {
+  console.log.apply(console, ["AdbDevicePollThread: "].concat(Array.prototype.slice.call(arguments, 0)));
+}
+
+worker.once("init", function({ libPath, driversPath, platform }) {
   I = new Instantiator();
 
   libadb = ctypes.open(libPath);
 
-  console.log("In init for device-poll thread");
-  
   // on Linux, fallback to pthreads here
   if (platform === "linux") {
     return;
@@ -40,11 +42,11 @@ worker.once("init", function({ libPath, platform }) {
               }, libadb);
 
     I.use("usb_monitor")();
-    console.log("usb_monitor returned!");
+    debug("usb_monitor returned!");
   } else if (platform === "winnt") {
-    console.log("In platform: winnt");
-    const libadbdrivers = ctypes.open("C:\\Users\\bkase\\Documents\\work\\r2d2b2g\\addon\\lib\\low-level\\android-tools\\adb-bin\\AdbWinApi.dll");
-    console.log("opened libadbdrivers");
+    debug("In platform: winnt");
+    const libadbdrivers = ctypes.open(driversPath);
+    debug("opened libadbdrivers");
 
     const bridge_funcs = [
         { "AdbEnumInterfaces": AdbEnumInterfacesType },
@@ -83,7 +85,7 @@ worker.once("init", function({ libPath, platform }) {
 });
 
 worker.listen("cleanup", function() {
-  console.log("Cleaning up");
+  debug("Cleaning up");
   if (libadb) {
     libadb.close();
   }

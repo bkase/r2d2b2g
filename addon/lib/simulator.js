@@ -21,7 +21,7 @@ const Timer = require("timer");
 const RemoteSimulatorClient = require("remote-simulator-client");
 const xulapp = require("sdk/system/xul-app");
 const JsonLint = require("jsonlint/jsonlint");
-const ADB = require("adb");
+const ADB = require("adb-pure/adb-pure");
 const Promise = require("sdk/core/promise");
 const Runtime = require("runtime");
 const Validator = require("./validator");
@@ -62,10 +62,6 @@ let simulator = module.exports = {
    * Unload the module.
    */
   unload: function unload(reason) {
-    // TODO: This doesn't work because unload doesn't pop the event queue (will we have to synchronize this?)
-    ADB.close(function closed() {
-      console.log("Terminated ADB successfully");
-    });
 
     // Kill the Simulator and ADB processes, so they don't continue to run
     // unnecessarily if the user is quitting Firefox or disabling the addon;
@@ -74,7 +70,10 @@ let simulator = module.exports = {
     this.kill();
 
     if (ADB.didRunInitially) {
-      ADB.kill(Runtime.OS == "WINNT" ? true : false /* sync */);
+      // TODO: This doesn't work because unload doesn't pop the event queue (will we have to synchronize this?)
+      ADB.close(function closed() {
+        console.log("Terminated ADB successfully");
+      });
     }
 
     // Close the Dashboard if the user is disabling or updating the addon.
@@ -1306,7 +1305,6 @@ let simulator = module.exports = {
     console.log("simulator.observe: " + topic);
     switch (topic) {
       case "adb-ready":
-        // ADB.trackDevices();
         break;
       case "adb-device-connected":
         deviceConnected = true;
@@ -1526,11 +1524,11 @@ let simulator = module.exports = {
 
       let destDir = "/data/local/tmp/b2g/" + app.xkey + "/";
 
-      ADB.push(manifestFile, destDir + "manifest.webapp").then(
+      ADB.pushFile(manifestFile, destDir + "manifest.webapp").then(
         function success(data) {
           console.log("ADB.push manifest file success: " + data);
 
-          ADB.push(metadataFile, destDir + "metadata.json").then(
+          ADB.pushFile(metadataFile, destDir + "metadata.json").then(
             function success(data) {
               console.log("ADB.push metadata file success: " + data);
 
@@ -1611,7 +1609,7 @@ let simulator = module.exports = {
       }
 
       let destDir = "/data/local/tmp/b2g/" + app.xkey + "/";
-      ADB.push(pkg, destDir + "application.zip").then(
+      ADB.pushFile(pkg, destDir + "application.zip").then(
         function success(data) {
           console.log("ADB.push success: " + data);
           Debugger.webappsRequest({

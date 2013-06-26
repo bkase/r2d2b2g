@@ -16,11 +16,15 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
+function debug() {
+  console.log.apply(console, ["AdbUtilityThread: "].concat(Array.prototype.slice.call(arguments, 0)));
+}
+
 let I = null;
 let libadb = null;
 let platform_ = null;
 const atransport = ctypes.void_t; // TODO: opaque struct
-worker.listen("init", function({ libPath, platform }) {
+worker.listen("init", function({ libPath, driversPath, platform }) {
   platform_ = platform;
 
   I = new Instantiator();
@@ -46,7 +50,7 @@ worker.listen("init", function({ libPath, platform }) {
   }
   
   if (platform === "winnt") {
-    const libadbdrivers = ctypes.open("C:\\Users\\bkase\\Documents\\work\\r2d2b2g\\addon\\lib\\low-level\\android-tools\\adb-bin\\AdbWinApi.dll");
+    const libadbdrivers = ctypes.open(driversPath);
 
     I.declare({ name: "AdbCloseHandle",
                 returns: AdbCloseHandleType.returnType,
@@ -67,7 +71,7 @@ worker.listen("init", function({ libPath, platform }) {
 });
 
 worker.listen("cleanup", function() {
-  console.log("Cleaning up Utility");
+  debug("Cleaning up Utility");
   if (libadb) {
     let cleanup = I.use("cleanup");
     cleanup();
@@ -76,10 +80,10 @@ worker.listen("cleanup", function() {
 });
 
 worker.listen("query", function({ service }) {
-  console.log("got query: " + service);
+  debug("got query: " + service);
   let connect = I.use("connect_service");
   let fd = connect(service);
-  console.log("Query returned: " + fd);
+  debug("Query returned: " + fd);
   return { fd: fd };
 });
 

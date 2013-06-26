@@ -17,6 +17,10 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL);
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
+function debug() {
+  console.log.apply(console, ["AdbIOThread: "].concat(Array.prototype.slice.call(arguments, 0)));
+}
+
 let I = null;
 let libadb = null;
 worker.once("init", function({ libPath }) {
@@ -44,7 +48,7 @@ worker.listen("readFully", function({ fd, tag }) {
   let size = 4096;
   let buffer = new ctypes.ArrayType(ctypes.char, 4096)();
 
-  console.log("Buffer constructed successfully");
+  debug("Buffer constructed successfully");
   while (true) {
     let len = read(fd, buffer, size-1);
     buffer[len] = 0; // null-terminate the string
@@ -67,7 +71,7 @@ worker.listen("writeFully", function({ fd /*, toWriteS*/ }) {
   let buffer = ctypes.cast(num.address(), ctypes.char.ptr);
   let r;
 
-  // console.log("fd: " + fd + ", buf: " + buffer + " len: " + len);
+  debug("fd: " + fd + ", buf: " + buffer + " len: " + len);
   while(len > 0) {
     r = write(fd, buffer, len);
     if(r > 0) {
@@ -75,7 +79,7 @@ worker.listen("writeFully", function({ fd /*, toWriteS*/ }) {
       buffer += r;
     } else {
       if (r < 0) {
-        console.log("writex error");
+        debug("writex error");
         return { ret: -1 };
       }
     }
@@ -85,7 +89,7 @@ worker.listen("writeFully", function({ fd /*, toWriteS*/ }) {
 });
 
 worker.listen("cleanup", function() {
-  console.log("IO: Cleaning up");
+  debug("IO: Cleaning up");
   if (libadb) {
     libadb.close();
     libadb = null;

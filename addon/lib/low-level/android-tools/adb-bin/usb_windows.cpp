@@ -134,9 +134,9 @@ static struct dll_bridge * bridge;
 extern struct dll_io_bridge * i_bridge;
 extern struct dll_io_bridge * o_bridge;
 
-#define D_ D
-#undef D
-#define D printf
+//#define D_ D
+//#undef D
+//#define D printf
 
 int known_device_locked(const char* dev_name) {
   usb_handle* usb;
@@ -553,5 +553,5 @@ void find_devices() {
   
 }
 
-#undef D
-#define D D_
+//#undef D
+//#define D D_

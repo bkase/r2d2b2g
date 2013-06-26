@@ -20,10 +20,14 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
+function debug() {
+  console.log.apply(console, ["AdbIOThreadSpawner: "].concat(Array.prototype.slice.call(arguments, 0)));
+}
+
 let I = null;
 let libadb = null;
 
-worker.once("init", function({ libPath, threadName, argTypesStrings, argStrings, platform }) {
+worker.once("init", function({ libPath, driversPath, threadName, argTypesStrings, argStrings, platform }) {
   I = new Instantiator();
 
   argTypesStrings = argTypesStrings || [];
@@ -32,8 +36,7 @@ worker.once("init", function({ libPath, threadName, argTypesStrings, argStrings,
   libadb = ctypes.open(libPath);
 
   if (platform === "winnt") {
-    // TODO: Abstract this
-    const libadbdrivers = ctypes.open("C:\\Users\\bkase\\Documents\\work\\r2d2b2g\\addon\\lib\\low-level\\android-tools\\adb-bin\\AdbWinApi.dll");
+    const libadbdrivers = ctypes.open(driversPath);
 
     const io_bridge_funcs = [
       { "AdbReadEndpointAsync": AdbReadEndpointAsyncType },
@@ -47,22 +50,20 @@ worker.once("init", function({ libPath, threadName, argTypesStrings, argStrings,
       
     I.declare({ name: threadName,
                 returns: ctypes.int,
-                // server_port
                 args: argTypesStrings.map(function(x) eval(x)).concat([ struct_dll_io_bridge.ptr ])
               }, libadb);
 
-    console.log("Spawning: " + threadName + " with args: " + argStrings);
+    debug("Spawning: " + threadName + " with args: " + argStrings);
     let spawn = I.use(threadName);
 
     return spawn.apply( spawn, argStrings.map(function(x) eval(x)).concat([ io_bridge.address() ]) );
   } else {
     I.declare({ name: threadName,
                 returns: ctypes.int,
-                // server_port
                 args: argTypesStrings.map(function(x) eval(x))
               }, libadb);
 
-    console.log("Spawning: " + threadName + " with args: " + argStrings);
+    debug("Spawning: " + threadName + " with args: " + argStrings);
     let spawn = I.use(threadName);
 
     return spawn.apply( spawn, argStrings.map(function(x) eval(x)) );

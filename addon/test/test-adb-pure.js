@@ -1,4 +1,4 @@
-const adb = require("adb-pure");
+const adb = require("adb-pure/adb-pure");
 const timer = require("timer");
 const Promise = require("sdk/core/promise");
 const { Cu } = require("chrome");
@@ -12,7 +12,7 @@ const file = require("sdk/io/file");
 let isPhonePluggedIn = null;
 
 // Before all
-adb.startAdbInBackground(function(data) {
+adb._startAdbInBackground(function(data) {
   if (data.topic === "adb-device-disconnected") {
     isPhonePluggedIn = false;
   } else if (data.topic === "adb-device-connected") {

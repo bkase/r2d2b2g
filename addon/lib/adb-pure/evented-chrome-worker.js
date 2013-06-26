@@ -13,6 +13,10 @@
 
 ;(function(exports) {
 
+  function debug() {
+    console.log.apply(console, ["EventedChromeWorker: "].concat(Array.prototype.slice.call(arguments, 0)));
+  }
+
   let defer, ChromeWorker;
   if (typeof module !== 'undefined') {
     ChromeWorker = require('chrome').ChromeWorker;
@@ -72,10 +76,10 @@
     // magic (the other half of runOnPeerThread)
     // TODO: This only works if there are 2 or more args (fix this)
     this.listenAndForget("_task", (function({ task, args }) {
-      console.log("taskFn: (" + task + ")");
-      console.log("args: " + args );
+      debug("taskFn: (" + task + ")");
+      debug("args: " + args );
       let ja = JSON.parse(args);
-      console.log("ja: " + ja);
+      debug("ja: " + ja);
       let taskFn = eval("(" + task + ")");
       return taskFn.apply(this, ja);
     }).bind(this));
@@ -97,7 +101,6 @@
   }
   EventedChromeWorker.prototype = {
     newWorker: function make(url, args) {
-      console.log("this.context: " + this.context);
       return new EventedChromeWorker(url, args, this.context);
     },
 

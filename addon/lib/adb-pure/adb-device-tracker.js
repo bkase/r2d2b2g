@@ -11,7 +11,7 @@
 
 const { Cc, Ci, Cr, Cu } = require("chrome");
 const { Class } = require("sdk/core/heritage");
-const { AdbClient } = require("adb-client");
+const { AdbClient } = require("adb-pure/adb-client");
 
 let { TextDecoder } = Cu.import("resource://gre/modules/Services.jsm");
 

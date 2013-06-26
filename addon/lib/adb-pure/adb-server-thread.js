@@ -18,6 +18,10 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL);
 const worker = new EventedChromeWorker(null);
 const console = new Console(worker);
 
+function debug() {
+  console.log.apply(console, ["AdbServerThread: "].concat(Array.prototype.slice.call(arguments, 0)));
+}
+
 let I = null;
 let libadb = null;
 let libPath_ = null;
@@ -34,7 +38,6 @@ const struct_adb_main_input =
     { spawnD: ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr }
   ]);
 
-console.log("Did the magic work?");
 worker.once("init", function({ libPath }) {
 
   libPath_ = libPath;
@@ -81,7 +84,7 @@ worker.once("start", function({ port }) {
   input.contents.is_lib_call = 1;
 
   let spawnIOfn = function spawnIO(t_ptr) {
-    console.log("spawnIO was actually called from C!!!, with voidPtr: " + t_ptr.toString());
+    debug("spawnIO was called from C, with voidPtr: " + t_ptr.toString());
     worker.runOnPeerThread(function spawnIO_task(libPathS, t_ptr_strS, workerURIS) {
       let [libPath, t_ptr_str, workerURI] = [JSON.parse(libPathS), JSON.parse(t_ptr_strS), JSON.parse(workerURIS)];
 
@@ -91,7 +94,8 @@ worker.once("start", function({ port }) {
           threadName: "device_input_thread",
           argTypesStrings: ["ctypes.void_t.ptr"],
           argStrings: [t_ptr_str],
-          platform: context.platform
+          platform: context.platform,
+          driversPath: context.driversPath
         });
 
       let outputThread = this.newWorker(workerURI, "output_thread");
@@ -100,7 +104,8 @@ worker.once("start", function({ port }) {
           threadName: "device_output_thread",
           argTypesStrings: ["ctypes.void_t.ptr"],
           argStrings: [t_ptr_str],
-          platform: context.platform
+          platform: context.platform,
+          driversPath: context.driversPath
         });
 
       this.context.outputThread = outputThread;
@@ -114,13 +119,12 @@ worker.once("start", function({ port }) {
 
   // NOTE: on linux this will not be called
   let spawnDfn = function() {
-    console.log("spawnD was actually called from C!!!");
+    debug("spawnD was actually called from C!!!");
     worker.runOnPeerThread(function spawnD_task(libPathS, workerURIS) {
       let [libPath, workerURI] = [JSON.parse(libPathS), JSON.parse(workerURIS)]
 
-      console.log("WORKER URI: " + workerURI);
       let devicePollWorker = this.newWorker(workerURI, "device_poll_thread");
-      devicePollWorker.emitAndForget("init", { libPath: libPath, platform: context.platform });
+      devicePollWorker.emitAndForget("init", { libPath: libPath, driversPath: context.driversPath, platform: context.platform });
 
     }, libPath_, WORKER_URL_DEVICE_POLL);
   };
@@ -136,12 +140,12 @@ worker.once("start", function({ port }) {
   input.contents.exit_fd = pipe[1];
   // NOTE: this will loop forever (until signal-ed)
   let x = main(input);
-  console.log("Main returned; " + x);
+  debug("Main returned; " + x);
   return { ret: x };
 });
 
 worker.listen("cleanup", function() {
-  console.log("Cleaning up");
+  debug("Cleaning up");
   if (libadb) {
     libadb.close();
   }

@@ -13,7 +13,7 @@ const { Cu, Cc, Ci } = require("chrome");
 
 const Promise = require("sdk/core/promise");
 const { Class } = require("sdk/core/heritage");
-const { AdbClient } = require("adb-client");
+const { AdbClient } = require("adb-pure/adb-client");
 
 function debug() {
   console.log.apply(console, ["AdbCommandRunner: "].concat(Array.prototype.slice.call(arguments, 0)));

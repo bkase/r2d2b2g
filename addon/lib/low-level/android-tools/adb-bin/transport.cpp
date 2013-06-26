@@ -29,9 +29,9 @@
 #include "adb.h"
 #include "threads.h"
 
-#define D_ D
-#undef D
-#define D printf
+//#define D_ D
+//#undef D
+//#define D printf
 
 static void transport_unref(atransport *t);
 
@@ -312,6 +312,9 @@ void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
     handle_output_oops(t, close_handle_func);
 }
 
+// TODO: Unplug -> Replug -> Unplug confuses the devices list
+// ONLY ON OSX
+
 /* The transport is opened by transport_register_func before
 ** the input and output threads are started.
 **
@@ -326,6 +329,11 @@ void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
 */
 void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
 {
+    // TODO: This will only work in the case where there is only one device connected for now
+    // TODO: Locks?
+    started_output_cleanup = 0; 
+    ended_output_cleanup = 0;
+
      
     o_bridge = _io_bridge;
 
@@ -365,6 +373,7 @@ void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
     }
     // this code rarely executes if we are killing IO (since it will be killed from read_from_remote)
     if (started_output_cleanup && ended_output_cleanup) {
+      printf("Already cleaned (in output thread)\n");
       return NULL; // we're safe
     } else if (started_output_cleanup && !ended_output_cleanup) {
       printf("******* BUG: Undefined behavior in race detected (in output thread)!\n");
@@ -1326,5 +1335,5 @@ int check_data(apacket *p)
     }
 }
 
-#undef D
-#define D D_
+//#undef D
+//#define D D_

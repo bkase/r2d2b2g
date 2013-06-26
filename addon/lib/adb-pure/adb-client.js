@@ -35,9 +35,9 @@ let AdbClient = Class({
   // @return                A js object { length:...; data:... }
   _unpackPacket: function adb_unpackPacket(aPacket, aIgnoreResponse) {
     let buffer = OLD_SOCKET_API ? aPacket.buffer : aPacket;
-    console.log("Len buffer: " + buffer.byteLength);
+    debug("Len buffer: " + buffer.byteLength);
     if (buffer.byteLength === 4 && !aIgnoreResponse) {
-      console.log("Packet empty");
+      debug("Packet empty");
       return { length: 0, data: "" };
     }
     let lengthView = new Uint8Array(buffer, aIgnoreResponse ? 0 : 4, 4);
@@ -136,7 +136,6 @@ let AdbClient = Class({
 
   close: function() {
     this._sockets.forEach(function(s) {
-      console.log("&&&& READY STATE: " + s.readyState);
       if (s.readyState === "open" || s.readyState === "connecting") {
         s.close();
       }
