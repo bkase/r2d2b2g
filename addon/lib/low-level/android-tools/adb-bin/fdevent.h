@@ -62,7 +62,7 @@ void fdevent_set_timeout(fdevent *fde, int64_t  timeout_ms);
 
 /* loop forever, handling events.
 */
-void fdevent_loop();
+void fdevent_loop(int exit_fd);
 
 struct fdevent 
 {

@@ -104,7 +104,7 @@ void find_devices();
 void* device_poll_thread(void* unused);
 
 /// Initializes this module
-void usb_init();
+void usb_init(int(*spawnD)());
 
 /// Cleans up this module
 void usb_cleanup();
@@ -119,16 +119,24 @@ int usb_write(usb_handle* handle, const void* data, int len);
 int usb_read(usb_handle *handle, void* data, int len);
 
 /// Cleans up opened usb handle
-void usb_cleanup_handle(usb_handle* handle);
+void usb_cleanup_handle(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE), char * tag);
 
 /// Cleans up (but don't close) opened usb handle
-void usb_kick(usb_handle* handle);
+void usb_kick(usb_handle *h, bool (*close_handle_func)(ADBAPIHANDLE));
 
 /// Closes opened usb handle
-int usb_close(usb_handle* handle);
+int usb_close(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE));
 
 /// Gets interface (device) name for an opened usb handle
 const char *usb_name(usb_handle* handle);
+
+static struct dll_bridge * bridge;
+extern struct dll_io_bridge * i_bridge;
+extern struct dll_io_bridge * o_bridge;
+
+#define D_ D
+#undef D
+#define D printf
 
 int known_device_locked(const char* dev_name) {
   usb_handle* usb;
@@ -182,7 +190,10 @@ int register_new_device(usb_handle* handle) {
   return 1;
 }
 
-void* device_poll_thread(void* unused) {
+
+void* device_poll_thread(void* _bridge) {
+  bridge = (struct dll_bridge *)_bridge;
+  printf("made device poll thread!!\n");
   D("Created device thread\n");
 
   while(1) {
@@ -193,10 +204,13 @@ void* device_poll_thread(void* unused) {
   return NULL;
 }
 
-void usb_init() {
-  adb_thread_t tid;
+void usb_init(int(*spawnD)()) {
 
-  TODO WHY IS THIS COMMENTED OUT
+  printf("Pre-spawnD\n");
+  spawnD();
+  printf("Post-spawnD\n");
+  // adb_thread_t tid;
+
   /*if(adb_thread_create(&tid, device_poll_thread, NULL, "device_poll")) {
     fatal_errno("cannot create input thread");
   }*/
@@ -216,7 +230,7 @@ usb_handle* do_usb_open(const wchar_t* interface_name) {
   ret->prev = ret;
 
   // Create interface.
-  ret->adb_interface = AdbCreateInterfaceByName(interface_name);
+  ret->adb_interface = bridge->AdbCreateInterfaceByName(interface_name);
 
   if (NULL == ret->adb_interface) {
     free(ret);
@@ -226,13 +240,13 @@ usb_handle* do_usb_open(const wchar_t* interface_name) {
 
   // Open read pipe (endpoint)
   ret->adb_read_pipe =
-    AdbOpenDefaultBulkReadEndpoint(ret->adb_interface,
+    bridge->AdbOpenDefaultBulkReadEndpoint(ret->adb_interface,
                                    AdbOpenAccessTypeReadWrite,
                                    AdbOpenSharingModeReadWrite);
   if (NULL != ret->adb_read_pipe) {
     // Open write pipe (endpoint)
     ret->adb_write_pipe =
-      AdbOpenDefaultBulkWriteEndpoint(ret->adb_interface,
+      bridge->AdbOpenDefaultBulkWriteEndpoint(ret->adb_interface,
                                       AdbOpenAccessTypeReadWrite,
                                       AdbOpenSharingModeReadWrite);
     if (NULL != ret->adb_write_pipe) {
@@ -240,7 +254,7 @@ usb_handle* do_usb_open(const wchar_t* interface_name) {
       unsigned long name_len = 0;
 
       // First get expected name length
-      AdbGetInterfaceName(ret->adb_interface,
+      bridge->AdbGetInterfaceName(ret->adb_interface,
                           NULL,
                           &name_len,
                           true);
@@ -249,7 +263,7 @@ usb_handle* do_usb_open(const wchar_t* interface_name) {
 
         if (NULL != ret->interface_name) {
           // Now save the name
-          if (AdbGetInterfaceName(ret->adb_interface,
+          if (bridge->AdbGetInterfaceName(ret->adb_interface,
                                   ret->interface_name,
                                   &name_len,
                                   true)) {
@@ -265,7 +279,7 @@ usb_handle* do_usb_open(const wchar_t* interface_name) {
 
   // Something went wrong.
   int saved_errno = GetLastError();
-  usb_cleanup_handle(ret);
+  usb_cleanup_handle(ret, bridge->AdbCloseHandle, "bridge1");
   free(ret);
   SetLastError(saved_errno);
 
@@ -279,12 +293,14 @@ int usb_write(usb_handle* handle, const void* data, int len) {
 
   D("usb_write %d\n", len);
   if (NULL != handle) {
+    D("Before bridge->AdbWriteEndpointSync\n");
     // Perform write
-    ret = AdbWriteEndpointSync(handle->adb_write_pipe,
+    ret = i_bridge->AdbWriteEndpointSync(handle->adb_write_pipe,
                                (void*)data,
                                (unsigned long)len,
                                &written,
                                time_out);
+    D("After bridge->AdbWriteEndpointSync\n");
     int saved_errno = GetLastError();
 
     if (ret) {
@@ -293,7 +309,7 @@ int usb_write(usb_handle* handle, const void* data, int len) {
       if (written == (unsigned long)len) {
         if(handle->zero_mask && (len & handle->zero_mask) == 0) {
           // Send a zero length packet
-          AdbWriteEndpointSync(handle->adb_write_pipe,
+          i_bridge->AdbWriteEndpointSync(handle->adb_write_pipe,
                                (void*)data,
                                0,
                                &written,
@@ -304,7 +320,7 @@ int usb_write(usb_handle* handle, const void* data, int len) {
     } else {
       // assume ERROR_INVALID_HANDLE indicates we are disconnected
       if (saved_errno == ERROR_INVALID_HANDLE)
-        usb_kick(handle);
+        usb_kick(handle, i_bridge->AdbCloseHandle);
     }
     errno = saved_errno;
   } else {
@@ -328,11 +344,13 @@ int usb_read(usb_handle *handle, void* data, int len) {
     while (len > 0) {
       int xfer = (len > 4096) ? 4096 : len;
 
-      ret = AdbReadEndpointSync(handle->adb_read_pipe,
+      D("Before bridge->AdbReadEndpointSync\n");
+      ret = o_bridge->AdbReadEndpointSync(handle->adb_read_pipe,
                                   (void*)data_,
                                   (unsigned long)xfer,
                                   &read,
                                   time_out);
+      D("After bridge->AdbReadEndpointSync\n");
       int saved_errno = GetLastError();
       D("usb_write got: %ld, expected: %d, errno: %d\n", read, xfer, saved_errno);
       if (ret) {
@@ -344,7 +362,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
       } else {
         // assume ERROR_INVALID_HANDLE indicates we are disconnected
         if (saved_errno == ERROR_INVALID_HANDLE)
-          usb_kick(handle);
+          usb_kick(handle, o_bridge->AdbCloseHandle);
         break;
       }
       errno = saved_errno;
@@ -359,16 +377,17 @@ int usb_read(usb_handle *handle, void* data, int len) {
   return -1;
 }
 
-void usb_cleanup_handle(usb_handle* handle) {
+void usb_cleanup_handle(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE), char * tag) {
   if (NULL != handle) {
+    printf("Called with tag: %s\n", tag);
     if (NULL != handle->interface_name)
       free(handle->interface_name);
     if (NULL != handle->adb_write_pipe)
-      AdbCloseHandle(handle->adb_write_pipe);
+      close_handle_func(handle->adb_write_pipe);
     if (NULL != handle->adb_read_pipe)
-      AdbCloseHandle(handle->adb_read_pipe);
+      close_handle_func(handle->adb_read_pipe);
     if (NULL != handle->adb_interface)
-      AdbCloseHandle(handle->adb_interface);
+      close_handle_func(handle->adb_interface);
 
     handle->interface_name = NULL;
     handle->adb_write_pipe = NULL;
@@ -377,11 +396,11 @@ void usb_cleanup_handle(usb_handle* handle) {
   }
 }
 
-void usb_kick(usb_handle* handle) {
+void usb_kick(usb_handle *handle, bool (*close_handle_func)(ADBAPIHANDLE)) {
   if (NULL != handle) {
     adb_mutex_lock(&usb_lock);
 
-    usb_cleanup_handle(handle);
+    usb_cleanup_handle(handle, close_handle_func, "usb_kick2");
 
     adb_mutex_unlock(&usb_lock);
   } else {
@@ -390,7 +409,7 @@ void usb_kick(usb_handle* handle) {
   }
 }
 
-int usb_close(usb_handle* handle) {
+int usb_close(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE)) {
   D("usb_close\n");
 
   if (NULL != handle) {
@@ -407,7 +426,7 @@ int usb_close(usb_handle* handle) {
     adb_mutex_unlock(&usb_lock);
 
     // Cleanup handle
-    usb_cleanup_handle(handle);
+    usb_cleanup_handle(handle, close_handle_func, "usb_close3");
     free(handle);
   }
 
@@ -431,7 +450,7 @@ int recognized_device(usb_handle* handle) {
   // Check vendor and product id first
   USB_DEVICE_DESCRIPTOR device_desc;
 
-  if (!AdbGetUsbDeviceDescriptor(handle->adb_interface,
+  if (!bridge->AdbGetUsbDeviceDescriptor(handle->adb_interface,
                                  &device_desc)) {
     return 0;
   }
@@ -439,7 +458,7 @@ int recognized_device(usb_handle* handle) {
   // Then check interface properties
   USB_INTERFACE_DESCRIPTOR interf_desc;
 
-  if (!AdbGetUsbInterfaceDescriptor(handle->adb_interface,
+  if (!bridge->AdbGetUsbInterfaceDescriptor(handle->adb_interface,
                                     &interf_desc)) {
     return 0;
   }
@@ -455,7 +474,7 @@ int recognized_device(usb_handle* handle) {
     if(interf_desc.bInterfaceProtocol == 0x01) {
       AdbEndpointInformation endpoint_info;
       // assuming zero is a valid bulk endpoint ID
-      if (AdbGetEndpointInformation(handle->adb_interface, 0, &endpoint_info)) {
+      if (bridge->AdbGetEndpointInformation(handle->adb_interface, 0, &endpoint_info)) {
         handle->zero_mask = endpoint_info.max_packet_size - 1;
       }
     }
@@ -476,12 +495,12 @@ void find_devices() {
 
   // Enumerate all present and active interfaces.
   ADBAPIHANDLE enum_handle =
-    AdbEnumInterfaces(usb_class_id, true, true, true);
+    bridge->AdbEnumInterfaces(usb_class_id, true, true, true);
 
   if (NULL == enum_handle)
     return;
 
-  while (AdbNextInterface(enum_handle, next_interface, &entry_buffer_size)) {
+  while (bridge->AdbNextInterface(enum_handle, next_interface, &entry_buffer_size)) {
     // TODO: FIXME - temp hack converting wchar_t into char.
     // It would be better to change AdbNextInterface so it will return
     // interface name as single char string.
@@ -503,7 +522,7 @@ void find_devices() {
           D("adding a new device %s\n", interf_name);
           char serial_number[512];
           unsigned long serial_number_len = sizeof(serial_number);
-          if (AdbGetSerialNumber(handle->adb_interface,
+          if (bridge->AdbGetSerialNumber(handle->adb_interface,
                                 serial_number,
                                 &serial_number_len,
                                 true)) {
@@ -512,16 +531,16 @@ void find_devices() {
               register_usb_transport(handle, serial_number, NULL, 1);
             } else {
               D("register_new_device failed for %s\n", interf_name);
-              usb_cleanup_handle(handle);
+              usb_cleanup_handle(handle, bridge->AdbCloseHandle, "bridge4");
               free(handle);
             }
           } else {
             D("cannot get serial number\n");
-            usb_cleanup_handle(handle);
+            usb_cleanup_handle(handle, bridge->AdbCloseHandle, "bridge5");
             free(handle);
           }
         } else {
-          usb_cleanup_handle(handle);
+          usb_cleanup_handle(handle, bridge->AdbCloseHandle, "bridge6");
           free(handle);
         }
       }
@@ -530,6 +549,9 @@ void find_devices() {
     entry_buffer_size = sizeof(entry_buffer);
   }
 
-  AdbCloseHandle(enum_handle);
+  bridge->AdbCloseHandle(enum_handle);
   
 }
+
+#undef D
+#define D D_

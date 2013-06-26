@@ -24,8 +24,16 @@
       let func =
         lib.declare.apply(lib,
                           [name, abi, returns].concat(args));
+      
       this._memo[name] = func;
       return func;
+    },
+    declareFromFuncType: function declareFromFuncType(name, type, lib) {
+      return this.declare({ name: name,
+                       abi: type.abi,
+                       returns: type.returnType,
+                       args: type.argTypes
+                     }, lib);
     }
   };
 

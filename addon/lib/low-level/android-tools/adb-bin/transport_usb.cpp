@@ -100,14 +100,22 @@ static int remote_write(apacket *p, atransport *t)
 
 static void remote_close(atransport *t)
 {
+#ifdef WIN32
+    usb_close(t->usb, t->close_handle_func);
+#else
     usb_close(t->usb);
+#endif
     t->usb = 0;
 }
 
 static void remote_kick(atransport *t)
 {
   printf("remote_kick called\n");
+#ifdef WIN32
+    usb_kick(t->usb, t->close_handle_func);
+#else
     usb_kick(t->usb);
+#endif
 }
 
 void init_usb_transport(atransport *t, usb_handle *h, int state)

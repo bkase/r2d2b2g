@@ -10,7 +10,7 @@ const INSTANTIATOR_URL = URL_PREFIX + "ctypes-instantiator.js";
 const EVENTED_CHROME_WORKER_URL = URL_PREFIX + "evented-chrome-worker.js";
 const CONSOLE_URL = URL_PREFIX + "worker-console.js";
 
-const WORKER_URL_SIMPLE_THREAD_SPAWNER = URL_PREFIX + "adb-simple-thread-spawner.js";
+const WORKER_URL_IO_THREAD_SPAWNER = URL_PREFIX + "adb-io-thread-spawner.js";
 const WORKER_URL_DEVICE_POLL = URL_PREFIX + "adb-device-poll-thread.js";
 
 importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL);
@@ -90,7 +90,8 @@ worker.once("start", function({ port }) {
         { libPath: libPath,
           threadName: "device_input_thread",
           argTypesStrings: ["ctypes.void_t.ptr"],
-          argStrings: [t_ptr_str]
+          argStrings: [t_ptr_str],
+          platform: context.platform
         });
 
       let outputThread = this.newWorker(workerURI, "output_thread");
@@ -98,13 +99,14 @@ worker.once("start", function({ port }) {
         { libPath: libPath,
           threadName: "device_output_thread",
           argTypesStrings: ["ctypes.void_t.ptr"],
-          argStrings: [t_ptr_str]
+          argStrings: [t_ptr_str],
+          platform: context.platform
         });
 
       this.context.outputThread = outputThread;
       this.context.t_ptrS = t_ptr_str;
 
-    }, libPath_, t_ptr.toString(), WORKER_URL_SIMPLE_THREAD_SPAWNER);
+    }, libPath_, t_ptr.toString(), WORKER_URL_IO_THREAD_SPAWNER);
   };
 
   input.contents.spawnIO = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.void_t.ptr]).ptr(spawnIOfn);
@@ -118,7 +120,7 @@ worker.once("start", function({ port }) {
 
       console.log("WORKER URI: " + workerURI);
       let devicePollWorker = this.newWorker(workerURI, "device_poll_thread");
-      devicePollWorker.emitAndForget("init", { libPath: libPath });
+      devicePollWorker.emitAndForget("init", { libPath: libPath, platform: context.platform });
 
     }, libPath_, WORKER_URL_DEVICE_POLL);
   };

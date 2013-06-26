@@ -30,7 +30,7 @@ let context = { __workers: [], // this array is populated automatically by Event
 console.log("Platform: " + platform);
 let dll = (platform === "winnt") ? ".dll" : ".so";
 let libPath = URL.toFilename(self.data.url("libadb" + dll));
-// let libPath = "c:\\users\\bkase\\documents\\visual studio 2012\\Projects\\AdbLib\\Debug\\AdbLib.dll";
+// let libPath = "c:\\users\\bkase\\documents\\visual studio 2012\\Projects\\AdbLib\\Debug\\AdbLib5.dll";
 
 const DEVICE_NOT_CONNECTED = "Device not connected";
 exports.DEVICE_NOT_CONNECTED = DEVICE_NOT_CONNECTED;
@@ -56,7 +56,6 @@ exports.startAdbInBackground = function(deviceTrackerCb) {
   serverWorker.onceAndForget("kill-server-fd", function({ fd }) {
     server_die_fd = fd;
   });
-
   timers.setTimeout(function() {
     trackDevices(function(data) {
       console.log("Tracked device in init: " + JSON.stringify(data));

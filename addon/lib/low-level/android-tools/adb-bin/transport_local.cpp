@@ -307,9 +307,11 @@ void local_init(int port)
     void* (*func)(void *);
 
     if(HOST) {
+        printf("Got client_socket_thread\n");
         func = client_socket_thread;
     } else {
 #if ADB_HOST
+        printf("Got server_socket_thread\n");
         func = server_socket_thread;
 #else
         /* For the adbd daemon in the system image we need to distinguish
@@ -329,6 +331,7 @@ void local_init(int port)
     D("transport: local %s init\n", HOST ? "client" : "server");
 
     char tag[1024];
+    printf("Just before adb_thread_create\n");
     sprintf(tag, "local_socket %s_%d", HOST ? "client" : "server", get_guid());
     if(adb_thread_create(thr, func, (void *)&port, tag)) {
         fatal_errno("cannot create local socket %s thread",

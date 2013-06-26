@@ -35,6 +35,11 @@ let AdbClient = Class({
   // @return                A js object { length:...; data:... }
   _unpackPacket: function adb_unpackPacket(aPacket, aIgnoreResponse) {
     let buffer = OLD_SOCKET_API ? aPacket.buffer : aPacket;
+    console.log("Len buffer: " + buffer.byteLength);
+    if (buffer.byteLength === 4 && !aIgnoreResponse) {
+      console.log("Packet empty");
+      return { length: 0, data: "" };
+    }
     let lengthView = new Uint8Array(buffer, aIgnoreResponse ? 0 : 4, 4);
     let decoder = new TextDecoder();
     let length = parseInt(decoder.decode(lengthView), 16);

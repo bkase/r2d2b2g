@@ -1930,9 +1930,40 @@ void fdevent_del(fdevent *fde, unsigned events)
         fde, (fde->state & FDE_EVENTMASK) & (~(events & FDE_EVENTMASK)));
 }
 
-void fdevent_loop()
+static int SHOULD_DIE = 0;
+static void fdevent_exit_func(int fd, unsigned ev, void * userdata) {
+    printf("fdevent_exit_func was fired!!\n");
+    if(ev & FDE_READ){
+         int death;
+
+         if(readx(fd, &death, sizeof(death))) {
+             FATAL("Failed to read the death int from JS\n");
+         }
+
+         if (death == 0xDEAD) {
+           printf("Got should die change\n");
+            SHOULD_DIE = 1;
+         } else {
+           printf("suicide\n");
+           // abort
+            *(int *)0;
+         }
+    }
+}
+
+void fdevent_js_die_setup(int js_die_fd) {
+    fdevent *fde;
+    fde = fdevent_create(js_die_fd, fdevent_exit_func, NULL);
+    if(!fde)
+        FATAL("cannot create fdevent for js-exit handler\n");
+    fdevent_add(fde, FDE_READ);
+    printf("Added FDE");
+}
+
+void fdevent_loop(int exit_fd)
 {
     fdevent *fde;
+    fdevent_js_die_setup(exit_fd);
 
     for(;;) {
 #if DEBUG
@@ -1946,6 +1977,10 @@ void fdevent_loop()
             fde->state &= (~FDE_PENDING);
             dump_fde(fde, "callback");
             fde->func(fde->fd, events, fde->arg);
+            if (SHOULD_DIE) {
+              printf("Exiting loop\n");
+              return;
+            }
         }
     }
 }

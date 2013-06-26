@@ -9,8 +9,9 @@ const URL_PREFIX = self.location.href.replace(/adb\-utility\-thread\.js/, "");
 const INSTANTIATOR_URL = URL_PREFIX + "ctypes-instantiator.js";
 const EVENTED_CHROME_WORKER_URL = URL_PREFIX + "evented-chrome-worker.js";
 const CONSOLE_URL = URL_PREFIX + "worker-console.js";
+const ADB_TYPES = URL_PREFIX + "adb-types.js";
 
-importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL);
+importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPES);
 
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
@@ -18,7 +19,6 @@ const console = new Console(worker);
 let I = null;
 let libadb = null;
 let platform_ = null;
-const pthread_t = ctypes.void_t;
 const atransport = ctypes.void_t; // TODO: opaque struct
 worker.listen("init", function({ libPath, platform }) {
   platform_ = platform;
@@ -37,15 +37,31 @@ worker.listen("init", function({ libPath, platform }) {
               args: [ctypes.char.ptr] // service
             }, libadb);
 
-  I.declare({ name: "on_kill_io_pump",
-              returns: ctypes.void_t,
-              args: [ atransport.ptr ]
-            }, libadb);
 
   if (platform === "darwin") {
     I.declare({ name: "kill_device_loop",
                 returns: ctypes.void_t,
                 args: []
+              }, libadb);
+  }
+  
+  if (platform === "winnt") {
+    const libadbdrivers = ctypes.open("C:\\Users\\bkase\\Documents\\work\\r2d2b2g\\addon\\lib\\low-level\\android-tools\\adb-bin\\AdbWinApi.dll");
+
+    I.declare({ name: "AdbCloseHandle",
+                returns: AdbCloseHandleType.returnType,
+                args: AdbCloseHandleType.argTypes
+              }, libadbdrivers);
+              
+    
+    I.declare({ name: "on_kill_io_pump",
+              returns: ctypes.void_t,
+              args: [ atransport.ptr, AdbCloseHandleType.ptr ]
+            }, libadb);
+  } else {
+    I.declare({ name: "on_kill_io_pump",
+                returns: ctypes.void_t,
+                args: [ atransport.ptr ]
               }, libadb);
   }
 });
@@ -75,6 +91,20 @@ worker.listen("kill-deviceLoop", function({ }) {
 });
 
 worker.listen("kill-ioPump", function({ t_ptrS }) {
-  I.use("on_kill_io_pump")(eval(t_ptrS));
+   
+  let bridge;
+  if (platform_ === "winnt") {
+    bridge = function close_bridge() {
+      let f = I.use("AdbCloseHandle");
+      // call the real DLL function with the arguments to the bridge call
+      return f.apply(f, arguments);
+    };
+  } else {
+    bridge = null
+  }
+  
+  let onKillIOPump = I.use("on_kill_io_pump");
+  onKillIOPump.apply(onKillIOPump, 
+                     [eval(t_ptrS)].concat((bridge) ? [AdbCloseHandleType.ptr(bridge)] : []));
 });
 

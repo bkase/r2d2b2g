@@ -18,11 +18,9 @@
 #define __ADB_H
 
 #ifdef __cplusplus
-  #define EXTERN_C_START extern "C" {
-  #define EXTERN_C_END }
+  #define EXTERN_C extern "C"
 #else
-  #define EXTERN_C_START
-  #define EXTERN_C_END
+  #define EXTERN_C
 #endif
 
 
@@ -34,16 +32,27 @@
 #define HAVE_WIN32_IPC 1
 #define HAVE_WINSOCK 1
 #define PATH_MAX 4096
-#define DLL_EXPORT _declspec(dllexport)
+#define DLL_EXPORT EXTERN_C _declspec(dllexport)
 #else
 #define DLL_EXPORT  
 #define Sleep(x) usleep((x) * 1000)
+typedef void * ADBAPIHANDLE;
 #endif
 
 #include <limits.h>
 
 #include "transport.h"  /* readx(), writex() */
 #include "sysdeps.h"
+
+#ifdef WIN32
+#include <usb100.h>
+#include <adb_api.h>
+// for some reason windows doesn't print to stdout or stderr
+//    from native code (wtf windows) so make printf log to a file    
+extern FILE* LOG_FILE;
+#undef printf
+#define printf(...) do { fprintf(LOG_FILE, __VA_ARGS__); fflush(LOG_FILE); } while (0); 
+#endif
 
 #define MAX_PAYLOAD 4096
 
@@ -205,6 +214,8 @@ struct atransport
     void (*close)(atransport *t);
     void (*kick)(atransport *t);
 
+    bool (*close_handle_func)(ADBAPIHANDLE);
+
     int fd;
     int transport_socket;
     fdevent transport_fde;
@@ -277,13 +288,49 @@ struct func_carrier {
   int (*should_kill)(void);
 };
 
+#ifdef WIN32
+struct dll_io_bridge {
+  ADBAPIHANDLE (*AdbReadEndpointAsync)(void *, unsigned long, unsigned long *, unsigned long, HANDLE);
+  ADBAPIHANDLE (*AdbWriteEndpointAsync)(ADBAPIHANDLE, void *, unsigned long, unsigned long *, unsigned long, HANDLE);
+  bool (*AdbReadEndpointSync)(ADBAPIHANDLE, void *, unsigned long, unsigned long *, unsigned long);
+  bool (*AdbWriteEndpointSync)(ADBAPIHANDLE, void *, unsigned long, unsigned long *, unsigned long);
+  bool (*AdbCloseHandle)(ADBAPIHANDLE);
+};
+
+struct dll_bridge {
+  ADBAPIHANDLE (*AdbEnumInterfaces)(GUID, bool, bool, bool);
+  ADBAPIHANDLE (*AdbCreateInterfaceByName)(const wchar_t *);
+  ADBAPIHANDLE (*AdbCreateInterface)(GUID, unsigned short, unsigned short, unsigned char);
+  bool (*AdbGetInterfaceName)(ADBAPIHANDLE, void *, unsigned long *, bool);
+  bool (*AdbGetSerialNumber)(ADBAPIHANDLE, void *, unsigned long *, bool);
+  bool (*AdbGetUsbDeviceDescriptor)(ADBAPIHANDLE, USB_DEVICE_DESCRIPTOR *);
+  bool (*AdbGetUsbConfigurationDescriptor)(ADBAPIHANDLE, USB_CONFIGURATION_DESCRIPTOR *);
+  bool (*AdbGetUsbInterfaceDescriptor)(ADBAPIHANDLE, USB_INTERFACE_DESCRIPTOR *);
+  bool (*AdbGetEndpointInformation)(ADBAPIHANDLE, unsigned char, AdbEndpointInformation *);
+  bool (*AdbGetDefaultBulkReadEndpointInformation)(ADBAPIHANDLE, AdbEndpointInformation *);
+  bool (*AdbGetDefaultBulkWriteEndpointInformation)(ADBAPIHANDLE, AdbEndpointInformation *);
+  ADBAPIHANDLE (*AdbOpenEndpoint)(ADBAPIHANDLE, unsigned char, AdbOpenAccessType, AdbOpenSharingMode);
+  ADBAPIHANDLE (*AdbOpenDefaultBulkReadEndpoint)(ADBAPIHANDLE, AdbOpenAccessType, AdbOpenSharingMode);
+  ADBAPIHANDLE (*AdbOpenDefaultBulkWriteEndpoint)(ADBAPIHANDLE, AdbOpenAccessType, AdbOpenSharingMode);
+  ADBAPIHANDLE (*AdbGetEndpointInterface)(ADBAPIHANDLE);
+  bool (*AdbQueryInformationEndpoint)(ADBAPIHANDLE, AdbEndpointInformation *);
+  bool (*AdbGetOvelappedIoResult)(ADBAPIHANDLE, LPOVERLAPPED, unsigned long *, bool);
+  bool (*AdbHasOvelappedIoComplated)(ADBAPIHANDLE);
+  bool (*AdbCloseHandle)(ADBAPIHANDLE);
+  bool (*AdbNextInterface)(ADBAPIHANDLE, AdbInterfaceInfo *, unsigned long *);
+};
+#else
+struct dll_bridge { };
+struct dll_io_bridge { };
+#endif
+
 int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag );
 void dump_thread_tag();
 int get_guid();
 void cleanup_all(void);
 void cleanup_transport(void);
 void should_kill_device_loop();
-void kill_io_pump(atransport * t);
+void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
 
 void print_packet(const char *label, apacket *p);
 
@@ -330,7 +377,7 @@ atransport *acquire_one_transport(int state, transport_type ttype, const char* s
 void   add_transport_disconnect( atransport*  t, adisconnect*  dis );
 void   remove_transport_disconnect( atransport*  t, adisconnect*  dis );
 void   run_transport_disconnects( atransport*  t );
-void   kick_transport( atransport*  t );
+void   kick_transport( atransport*  t, bool(*close_handle_func)(ADBAPIHANDLE) );
 
 /* initialize a transport object's func pointers and state */
 #if ADB_HOST
@@ -494,12 +541,17 @@ int  local_connect(int  port);
 int  local_connect_arbitrary_ports(int console_port, int adb_port);
 
 /* usb host/client interface */
-void usb_init();
+void usb_init(int(*spawnD)());
 void usb_cleanup();
 int usb_write(usb_handle *h, const void *data, int len);
 int usb_read(usb_handle *h, void *data, int len);
-int usb_close(usb_handle *h);
+#ifdef WIN32
+void usb_kick(usb_handle *h, bool (*close_handle_func)(ADBAPIHANDLE));
+int usb_close(usb_handle *h, bool (*close_handle_func)(ADBAPIHANDLE));
+#else
 void usb_kick(usb_handle *h);
+int usb_close(usb_handle *h);
+#endif
 
 /* used for USB device detection */
 #if ADB_HOST

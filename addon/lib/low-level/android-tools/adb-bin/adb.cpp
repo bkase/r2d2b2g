@@ -52,6 +52,9 @@ ADB_MUTEX_DEFINE( D_lock );
 
 // write to debug file
 FILE* debugLog;
+#ifdef WIN32
+FILE* LOG_FILE;
+#endif
 
 int HOST = 0;
 int gListenAll = 0;
@@ -81,6 +84,7 @@ adb_thread_t* __adb_threads_active[1024];
 char * __adb_tags_active[1024];
 int __adb_threads_active_count = 0;
 
+#ifndef WIN32
 void dump_thread_tag() {
   adb_mutex_lock(&threads_active_lock);
   int didDump = 0;
@@ -100,6 +104,9 @@ void dump_thread_tag() {
   }
   adb_mutex_unlock(&threads_active_lock);
 }
+#else
+void dump_thread_tag() { }
+#endif
 
 void addSpawnedThread(adb_thread_t * thread, char * tag) {
   printf("Creating thread: %d\n", __adb_threads_active_count);
@@ -161,6 +168,9 @@ void cleanup_all() {
   printf("Removing all listeners on sockets\n");
   remove_all_listeners();
   printf("Done removing all listeners\n");
+#ifdef WIN32
+    fclose(LOG_FILE); // close the log
+#endif
 }
 
 void fatal(const char *fmt, ...)
@@ -1320,6 +1330,9 @@ static int should_drop_privileges() {
 #endif /* !ADB_HOST */
 
 void * server_thread(void * args) {
+#ifdef WIN32
+  LOG_FILE = fopen("C:\\Users\\bkase\\Documents\\work\\adb.log", "w");
+#endif
   adb_sysdeps_init();
 
   struct adb_main_input* input = (struct adb_main_input*)args;
@@ -1351,7 +1364,7 @@ void * server_thread(void * args) {
 
     umask(000);
 #endif
-
+    
     // atexit(adb_cleanup);
 #ifdef HAVE_WIN32_PROC
     SetConsoleCtrlHandler( ctrlc_handler, TRUE );
@@ -1368,7 +1381,7 @@ void * server_thread(void * args) {
     printf("Before USB init\n");
     usb_init(spawnD);
     printf("After USB init\n");
-    local_init(DEFAULT_ADB_LOCAL_TRANSPORT_PORT);
+    // local_init(DEFAULT_ADB_LOCAL_TRANSPORT_PORT);
 	printf("After local_init\n");
 	#ifndef NO_AUTH
     adb_auth_init();
@@ -1381,7 +1394,7 @@ void * server_thread(void * args) {
     if(install_listener(local_name, "*smartsocket*", NULL, 0)) {
         printf("FAILED to install listener\n");
         D("Error installing listener");
-        return -1;
+        return NULL;
 
         // exit(1);
     }
@@ -1499,7 +1512,7 @@ void * server_thread(void * args) {
         start_logging();
     }
 
-    printf("Starting event loop...");
+    printf("Starting event loop...\n");
     fdevent_loop(exit_fd);
 
     // usb_cleanup();
@@ -1704,7 +1717,8 @@ int handle_host_request(char *service, transport_type ttype, char* serial, int r
     }
 
     // remove TCP transport
-    if (!strncmp(service, "disconnect:", 11)) {
+	// Disable this service to prevent complexity with Windows
+    /*if (!strncmp(service, "disconnect:", 11)) {
         char buffer[4096];
         memset(buffer, 0, sizeof(buffer));
         char* serial = service + 11;
@@ -1730,7 +1744,7 @@ int handle_host_request(char *service, transport_type ttype, char* serial, int r
         snprintf(buf, sizeof(buf), "OKAY%04x%s",(unsigned)strlen(buffer), buffer);
         writex(reply_fd, buf, strlen(buf));
         return 0;
-    }
+    }*/
 
     // returns our value for ADB_SERVER_VERSION
     if (!strcmp(service, "version")) {

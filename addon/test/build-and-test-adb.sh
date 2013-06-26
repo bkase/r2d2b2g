@@ -22,6 +22,7 @@ mv no-$FILE $FILE
 case `uname` in
   MINGW*)
     LIB=libadb.dll
+    cp /c/Users/bkase/Documents/Visual\ Studio\ 2012/Projects/AdbLib/Debug/AdbLib.dll ../data/$LIB
     ;;
   *)
     LIB=libadb.so

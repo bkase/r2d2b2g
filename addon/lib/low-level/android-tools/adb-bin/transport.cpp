@@ -29,12 +29,19 @@
 #include "adb.h"
 #include "threads.h"
 
+#define D_ D
+#undef D
+#define D printf
+
 static void transport_unref(atransport *t);
 
 static atransport transport_list = {
     /* .next = */ &transport_list,
     /* .prev = */ &transport_list,
 };
+
+struct dll_io_bridge * i_bridge;
+struct dll_io_bridge * o_bridge;
 
 ADB_MUTEX_DEFINE( transport_lock );
 //#define ADB_TRACE_FORCE 1
@@ -68,7 +75,7 @@ static void  dump_hex( const unsigned char*  ptr, size_t  len )
 #endif
 
 void
-kick_transport(atransport*  t)
+kick_transport(atransport*  t, bool (*close_handle_func)(ADBAPIHANDLE))
 {
     if (t && !t->kicked)
     {
@@ -85,6 +92,7 @@ kick_transport(atransport*  t)
 
         if (!kicked) {
             D("calling t->kick\n");
+            t->close_handle_func = close_handle_func;
             t->kick(t);
         }
     }
@@ -257,9 +265,9 @@ void send_packet(apacket *p, atransport *t)
 }
 
 
-static void handle_output_oops(atransport * t) {
+static void handle_output_oops(atransport * t, bool(*close_handle_func)(ADBAPIHANDLE)) {
     D("%s: transport output thread is exiting\n", t->serial);
-    kick_transport(t);
+    kick_transport(t, close_handle_func);
     D("After kick, before unref\n");
     transport_unref(t);
     D("After unref\n");
@@ -290,7 +298,7 @@ static int ended_output_cleanup = 0;
 //    of these two handle_output_* functions, the transport may be unref'ed twice
 //    (and other sorts of bad things could happen)
 //
-void kill_io_pump(atransport * t) {
+void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
     if (started_output_cleanup && !ended_output_cleanup) {
       printf("******* BUG: Undefined behavior in race detected!\n");
       return;
@@ -301,7 +309,7 @@ void kill_io_pump(atransport * t) {
     }
 
     handle_output_offline(t);
-    handle_output_oops(t);
+    handle_output_oops(t, close_handle_func);
 }
 
 /* The transport is opened by transport_register_func before
@@ -316,8 +324,11 @@ void kill_io_pump(atransport * t) {
 ** threads exit, but the input thread will kick the transport
 ** on its way out to disconnect the underlying device.
 */
-void *output_thread(void *_t)
+void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
 {
+     
+    o_bridge = _io_bridge;
+
     atransport *t = (atransport *)_t;
     apacket *p;
 
@@ -352,17 +363,30 @@ void *output_thread(void *_t)
             break;
         }
     }
+    // this code rarely executes if we are killing IO (since it will be killed from read_from_remote)
+    if (started_output_cleanup && ended_output_cleanup) {
+      return NULL; // we're safe
+    } else if (started_output_cleanup && !ended_output_cleanup) {
+      printf("******* BUG: Undefined behavior in race detected (in output thread)!\n");
+      return NULL;
+    }
 
     started_output_cleanup = 1;
     handle_output_offline(t);
 oops:
-    handle_output_oops(t);
+#ifdef WIN32
+    handle_output_oops(t, o_bridge->AdbCloseHandle);
+#else
+    handle_output_oops(t, NULL);
+#endif
     ended_output_cleanup = 1;
     return NULL;
 }
 
-void *input_thread(void *_t)
+void *input_thread(void *_t, struct dll_io_bridge * _io_bridge)
 {
+    i_bridge = _io_bridge;
+
     atransport *t = (atransport *)_t;
     apacket *p;
     int active = 0;
@@ -404,11 +428,18 @@ void *input_thread(void *_t)
 
     // this is necessary to avoid a race condition that occured when a transport closes
     // while a client socket is still active.
+	D("Pre-close sockets input-thread\n");
     close_all_sockets(t);
 
     D("%s: transport input thread is exiting, fd %d\n", t->serial, t->fd);
-    kick_transport(t);
+#ifdef WIN32
+    kick_transport(t, i_bridge->AdbCloseHandle);
+#else
+    kick_transport(t, NULL);
+#endif
+	D("Post-kick transport input-thread\n");
     transport_unref(t);
+	D("Post-unref transport input-thread\n");
     return 0;
 }
 
@@ -632,7 +663,7 @@ struct spawnFunc_carrier {
 static tmsg * tmsgs[1024];
 static int tmsgs_count = 0;
 static tmsg * addTMessage() {
-  tmsg * tmp = malloc(sizeof(tmsg));
+  tmsg * tmp = (tmsg *)malloc(sizeof(tmsg));
   tmsgs[tmsgs_count++] = tmp;
   return tmp;
 }
@@ -763,7 +794,7 @@ void init_transport_registration(int (*spawnIO)(atransport*))
     transport_registration_send = s[0];
     transport_registration_recv = s[1];
 
-    struct spawnFunc_carrier * c = malloc(sizeof(struct spawnFunc_carrier));
+    struct spawnFunc_carrier * c = (struct spawnFunc_carrier *)malloc(sizeof(struct spawnFunc_carrier));
     c->spawnIO = spawnIO;
     s_carrier = c; // this is freed in cleanup_transport
 
@@ -801,6 +832,7 @@ static void remove_transport(atransport *transport)
 
 static void transport_unref_locked(atransport *t)
 {
+  D("in unref transport locked\n");
     t->ref_count--;
     if (t->ref_count == 0) {
         D("transport: %s unref (kicking and closing)\n", t->serial);
@@ -817,6 +849,7 @@ static void transport_unref_locked(atransport *t)
 
 static void transport_unref(atransport *t)
 {
+  D("in unref transport\n");
     if (t) {
         adb_mutex_lock(&transport_lock);
         transport_unref_locked(t);
@@ -1122,18 +1155,25 @@ atransport *find_transport(const char *serial)
 
 void unregister_transport(atransport *t)
 {
-    adb_mutex_lock(&transport_lock);
+	printf("Legacy\n");
+	abort();
+
+    /*adb_mutex_lock(&transport_lock);
     t->next->prev = t->prev;
     t->prev->next = t->next;
     adb_mutex_unlock(&transport_lock);
 
     kick_transport(t);
-    transport_unref(t);
+    transport_unref(t);*/
 }
 
 // unregisters all non-emulator TCP transports
 void unregister_all_tcp_transports()
 {
+#ifdef WIN32
+	printf("Legacy\n");
+	abort();
+#else
     atransport *t, *next;
     adb_mutex_lock(&transport_lock);
     for (t = transport_list.next; t != &transport_list; t = next) {
@@ -1152,6 +1192,7 @@ void unregister_all_tcp_transports()
      }
 
     adb_mutex_unlock(&transport_lock);
+#endif
 }
 
 #endif
@@ -1285,3 +1326,5 @@ int check_data(apacket *p)
     }
 }
 
+#undef D
+#define D D_

@@ -207,7 +207,7 @@ void     fdevent_remove(fdevent *item);
 void     fdevent_set(fdevent *fde, unsigned events);
 void     fdevent_add(fdevent *fde, unsigned events);
 void     fdevent_del(fdevent *fde, unsigned events);
-void     fdevent_loop();
+void     fdevent_loop(int exit_fd);
 
 struct fdevent {
     fdevent *next;
