@@ -41,9 +41,7 @@ worker.once("init", function({ libPath }) {
             }, libadb);
 });
 
-// TODO: Should these API listeners be removed?
-//       For now, I'm assuming that terminating the worker frees the memory here
-worker.listen("readFully", function({ fd, tag }) {
+worker.listen("readStringFully", function({ fd, tag }) {
   let read = I.use("read_fd");
   let size = 4096;
   let buffer = new ctypes.ArrayType(ctypes.char, 4096)();
@@ -63,19 +61,17 @@ worker.listen("readFully", function({ fd, tag }) {
   return { ret: 0 };
 });
 
-// TODO: don't hardcode what to write
-worker.listen("writeFully", function({ fd /*, toWriteS*/ }) {
+worker.listen("writeFully", function({ fd, toWriteS, length }) {
   let write = I.use("write_fd");
-  let len = 4;
-  let num = ctypes.int(0xDEAD);
-  let buffer = ctypes.cast(num.address(), ctypes.char.ptr);
+  let val = eval(toWriteS);
+  let buffer = ctypes.cast(val.address(), ctypes.char.ptr);
   let r;
 
-  debug("fd: " + fd + ", buf: " + buffer + " len: " + len);
-  while(len > 0) {
-    r = write(fd, buffer, len);
+  debug("fd: " + fd + ", buf: " + buffer + " len: " + length);
+  while(length > 0) {
+    r = write(fd, buffer, length);
     if(r > 0) {
-      len -= r;
+      length -= r;
       buffer += r;
     } else {
       if (r < 0) {

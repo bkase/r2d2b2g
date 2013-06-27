@@ -23,7 +23,6 @@ function debug() {
 let I = null;
 let libadb = null;
 let platform_ = null;
-const atransport = ctypes.void_t; // TODO: opaque struct
 worker.listen("init", function({ libPath, driversPath, platform }) {
   platform_ = platform;
 

@@ -35,7 +35,8 @@ let driversPath = (platform === "winnt") ? URL.toFilename(self.data.url("win32/A
 // the context is used as shared state between EventedChromeWorker runOnPeerThread calls and this module
 let context = { __workers: [], // this array is populated automatically by EventedChromeWorker
                 platform: platform,
-                driversPath: driversPath
+                driversPath: driversPath,
+                libPath: libPath
               };
 
 const DEVICE_NOT_CONNECTED = "Device not connected";
@@ -79,7 +80,7 @@ function queryService(service, deferred) {
       result += data;
     });
 
-    ioWorker.emit("readFully", { fd: fd, tag: service }, function({ ret }) {
+    ioWorker.emit("readStringFully", { fd: fd, tag: service }, function({ ret }) {
       ioWorker.freeListener(msg, idx);
       deferred.resolve(result);
     });
@@ -298,7 +299,10 @@ module.exports = {
         utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
           debug("killDevAck received");
           // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
-          ioWorker.emit("writeFully", { fd: server_die_fd }, function writeAck(err) {
+          ioWorker.emit("writeFully", { fd: server_die_fd,
+                                        toWriteS: "ctypes.int(0xDEAD)",
+                                        length: 4
+                                      }, function writeAck(err) {
             debug("Finished writing to die_fd ret=" + JSON.stringify(err));
             timers.setTimeout(function() {
               workersToClean.forEach(function(w) {
@@ -316,9 +320,8 @@ module.exports = {
 
     function waitForAll(x) {
       if (x >= workersToClean.length) {
-        context.__workers.forEach(function([w, logi]) {
+        context.__workers.forEach(function(w) {
           debug("Killing Worker: " + w.tag)
-          w.freeListener("log", logi);
           w.terminate();
         });
         debug("ALL workers are terminated");

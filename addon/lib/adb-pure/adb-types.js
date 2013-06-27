@@ -72,3 +72,18 @@ const AdbCloseHandleType =
   ctypes.FunctionType(ctypes.default_abi, bool, [ ADBAPIHANDLE ]);
 const AdbNextInterfaceType =
   ctypes.FunctionType(ctypes.default_abi, bool, [ ADBAPIHANDLE, AdbInterfaceInfo.ptr, ctypes.uint64_t.ptr ]);
+
+const atransport = 
+  new ctypes.StructType("atransport");
+
+const struct_adb_main_input =
+  new ctypes.StructType("adb_main_input", [
+    { is_daemon: ctypes.int },
+    { server_port: ctypes.int },
+    { is_lib_call: ctypes.int },
+
+    { exit_fd: ctypes.int },
+
+    { spawnIO: ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ atransport.ptr ]).ptr },
+    { spawnD: ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr }
+  ]);

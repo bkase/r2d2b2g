@@ -74,12 +74,10 @@
     }).bind(this);
 
     // magic (the other half of runOnPeerThread)
-    // TODO: This only works if there are 2 or more args (fix this)
-    this.listenAndForget("_task", (function({ task, args }) {
+    this._taskIdx = this.listenAndForget("_task", (function({ task, args }) {
       debug("taskFn: (" + task + ")");
-      debug("args: " + args );
+      debug("args: " + args + ", " + typeof(args) );
       let ja = JSON.parse(args);
-      debug("ja: " + ja);
       let taskFn = eval("(" + task + ")");
       return taskFn.apply(this, ja);
     }).bind(this));
@@ -89,11 +87,11 @@
       // on the main thread
       this.runOnPeerThread(function() {
         // start a log listener
-        let idx = this.listen("log", function log(args) {
+        this._logIdx = this.listen("log", function log(args) {
           console.log.apply(console, ["Thread: "].concat(Array.prototype.slice.call(args, 0)));
         });
-        // add ourselves + log idx to __workers (to be terminated later)
-        this.context.__workers.push([this, idx]);
+        // add ourselves to __workers (to be terminated later)
+        this.context.__workers.push(this);
       });
     } else {
 
@@ -132,23 +130,21 @@
 
     once: function once(msg, cb) {
       let idx;
-      // TODO: do we need to preserve this in cb?
-      let that = this;
-      idx = this.listen(msg, function ondata(d) {
+      idx = this.listen(msg, (function ondata(d) {
         // free the listener
-        delete that.msgToCallbacksRespond[msg][idx];
+        delete this.msgToCallbacksRespond[msg][idx];
         return cb(d);
-      });
+      }).bind(this));
     },
 
     onceAndForget: function onceAndForget(msg, cb) {
       let idx;
-      // TODO: do we need to preserve this in cb?
       let that = this;
-      idx = this.listenAndForget(msg, function ondata(d) {
+      idx = this.listenAndForget(msg, (function ondata(d) {
+        // free the listener
         delete that.msgToCallbacksFree[msg][idx];
         return cb(d);
-      });
+      }).bind(this));
     },
 
     listen: function listen(msg, cb) {
@@ -180,6 +176,8 @@
     },
 
     terminate: function terminate() {
+      this.freeListener("_task", this._taskIdx);
+      this.freeListener("log", this._logIdx);
       this.worker.terminate();
       return this;
     },

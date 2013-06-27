@@ -9,11 +9,12 @@ const URL_PREFIX = self.location.href.replace(/adb\-server\-thread\.js/, "");
 const INSTANTIATOR_URL = URL_PREFIX + "ctypes-instantiator.js";
 const EVENTED_CHROME_WORKER_URL = URL_PREFIX + "evented-chrome-worker.js";
 const CONSOLE_URL = URL_PREFIX + "worker-console.js";
+const ADB_TYPES = URL_PREFIX + "adb-types.js";
 
 const WORKER_URL_IO_THREAD_SPAWNER = URL_PREFIX + "adb-io-thread-spawner.js";
 const WORKER_URL_DEVICE_POLL = URL_PREFIX + "adb-device-poll-thread.js";
 
-importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL);
+importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPES);
 
 const worker = new EventedChromeWorker(null);
 const console = new Console(worker);
@@ -24,23 +25,7 @@ function debug() {
 
 let I = null;
 let libadb = null;
-let libPath_ = null;
-const struct_adb_main_input =
-  new ctypes.StructType("adb_main_input", [
-    { is_daemon: ctypes.int },
-    { server_port: ctypes.int },
-    { is_lib_call: ctypes.int },
-
-    { exit_fd: ctypes.int },
-
-    // TODO: make the void_t.ptr an atransport.ptr
-    { spawnIO: ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.void_t.ptr]).ptr },
-    { spawnD: ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr }
-  ]);
-
 worker.once("init", function({ libPath }) {
-
-  libPath_ = libPath;
 
   I = new Instantiator();
 
@@ -49,7 +34,7 @@ worker.once("init", function({ libPath }) {
   I.declare({ name: "main_server",
               returns: ctypes.int,
               // server_port
-              args: [struct_adb_main_input.ptr]
+              args: [ struct_adb_main_input.ptr ]
             }, libadb);
 
   I.declare({ name: "malloc_",
@@ -85,14 +70,14 @@ worker.once("start", function({ port }) {
 
   let spawnIOfn = function spawnIO(t_ptr) {
     debug("spawnIO was called from C, with voidPtr: " + t_ptr.toString());
-    worker.runOnPeerThread(function spawnIO_task(libPathS, t_ptr_strS, workerURIS) {
-      let [libPath, t_ptr_str, workerURI] = [JSON.parse(libPathS), JSON.parse(t_ptr_strS), JSON.parse(workerURIS)];
+    worker.runOnPeerThread(function spawnIO_task(t_ptr_strS, workerURIS) {
+      let [t_ptr_str, workerURI] = [JSON.parse(t_ptr_strS), JSON.parse(workerURIS)];
 
       let inputThread = this.newWorker(workerURI, "input_thread");
       inputThread.emitAndForget("init",
-        { libPath: libPath,
+        { libPath: context.libPath,
           threadName: "device_input_thread",
-          argTypesStrings: ["ctypes.void_t.ptr"],
+          argTypesStrings: ["atransport.ptr"],
           argStrings: [t_ptr_str],
           platform: context.platform,
           driversPath: context.driversPath
@@ -100,9 +85,9 @@ worker.once("start", function({ port }) {
 
       let outputThread = this.newWorker(workerURI, "output_thread");
       outputThread.emitAndForget("init",
-        { libPath: libPath,
+        { libPath: context.libPath,
           threadName: "device_output_thread",
-          argTypesStrings: ["ctypes.void_t.ptr"],
+          argTypesStrings: ["atransport.ptr"],
           argStrings: [t_ptr_str],
           platform: context.platform,
           driversPath: context.driversPath
@@ -111,22 +96,22 @@ worker.once("start", function({ port }) {
       this.context.outputThread = outputThread;
       this.context.t_ptrS = t_ptr_str;
 
-    }, libPath_, t_ptr.toString(), WORKER_URL_IO_THREAD_SPAWNER);
+    }, t_ptr.toString(), WORKER_URL_IO_THREAD_SPAWNER);
   };
 
-  input.contents.spawnIO = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ctypes.void_t.ptr]).ptr(spawnIOfn);
+  input.contents.spawnIO = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [atransport.ptr]).ptr(spawnIOfn);
 
 
   // NOTE: on linux this will not be called
   let spawnDfn = function() {
     debug("spawnD was actually called from C!!!");
-    worker.runOnPeerThread(function spawnD_task(libPathS, workerURIS) {
-      let [libPath, workerURI] = [JSON.parse(libPathS), JSON.parse(workerURIS)]
+    worker.runOnPeerThread(function spawnD_task(workerURIS) {
+      let [workerURI] = [JSON.parse(workerURIS)]
 
       let devicePollWorker = this.newWorker(workerURI, "device_poll_thread");
-      devicePollWorker.emitAndForget("init", { libPath: libPath, driversPath: context.driversPath, platform: context.platform });
+      devicePollWorker.emitAndForget("init", { libPath: context.libPath, driversPath: context.driversPath, platform: context.platform });
 
-    }, libPath_, WORKER_URL_DEVICE_POLL);
+    }, WORKER_URL_DEVICE_POLL);
   };
 
   input.contents.spawnD = ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr(spawnDfn);
