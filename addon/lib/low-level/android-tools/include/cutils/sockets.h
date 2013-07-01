@@ -20,7 +20,9 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef WIN32
 #include <stdbool.h>
+#endif
 
 #ifdef HAVE_WINSOCK
 #include <winsock2.h>

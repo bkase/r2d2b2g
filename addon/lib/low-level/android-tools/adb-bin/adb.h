@@ -28,9 +28,9 @@
 #ifdef _WIN32
 #define ADB_HOST 1
 #define snprintf _snprintf
-#define HAVE_WIN32_PROC 1
-#define HAVE_WIN32_IPC 1
-#define HAVE_WINSOCK 1
+// #define HAVE_WIN32_PROC 1
+// #define HAVE_WIN32_IPC 1
+// #define HAVE_WINSOCK 1
 #define PATH_MAX 4096
 #define DLL_EXPORT EXTERN_C _declspec(dllexport)
 #else

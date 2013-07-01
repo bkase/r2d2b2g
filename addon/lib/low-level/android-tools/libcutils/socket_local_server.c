@@ -19,7 +19,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <stddef.h>
 
