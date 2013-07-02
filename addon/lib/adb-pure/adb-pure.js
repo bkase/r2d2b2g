@@ -138,7 +138,7 @@ module.exports = {
     serverWorker.onceAndForget("kill-server-fd", function({ fd }) {
       server_die_fd = fd;
     });
-    timers.setTimeout(function() {
+    serverWorker.onceAndForget("track-ready", function trackack() {
       trackDevices(function(data) {
         debug("Tracked device in init: " + JSON.stringify(data));
         if (data.topic === "adb-device-disconnected") {
@@ -150,7 +150,7 @@ module.exports = {
         }
         deviceTrackerCb(data);
       });
-    }, 2000);
+    });
 
 
     [ioWorker, utilWorker].forEach(function initworker(w) {
@@ -286,37 +286,33 @@ module.exports = {
     stopTrackingDevices();
     debug("After stopTrackingDevices");
     let workersToClean = [serverWorker, ioWorker, utilWorker];
-    timers.setTimeout(function() {
 
-      // NOTE: the output thread should be manually terminated, the input thread
-      //       will be terminated safely by the kill-ioPump message to
-      //       the util worker
-      debug("Terminating outputThread");
-      context.outputThread.terminate();
-      utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
-        debug("killIOAck received");
-        // NOTE: this call will return immediately for now, but it needs at most 100ms to close on OSX
-        utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
-          debug("killDevAck received");
-          // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
-          ioWorker.emit("writeFully", { fd: server_die_fd,
-                                        toWriteS: "ctypes.int(0xDEAD)",
-                                        length: 4
-                                      }, function writeAck(err) {
-            debug("Finished writing to die_fd ret=" + JSON.stringify(err));
-            timers.setTimeout(function() {
-              workersToClean.forEach(function(w) {
-                w.emit("cleanup", null, function cleaned() {
-                  w.terminate();
-                  debug("Closed successfully");
-                  waitForAll(x++);
-                });
-              });
-            }, 1000);
+    // NOTE: the output thread should be manually terminated, the input thread
+    //       will be terminated safely by the kill-ioPump message to
+    //       the util worker
+    debug("Terminating outputThread");
+    context.outputThread.terminate();
+    utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
+      debug("killIOAck received");
+      // NOTE: this call will return immediately for now, but it needs at most 100ms to close on OSX
+      utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
+        debug("killDevAck received");
+        // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
+        ioWorker.emit("writeFully", { fd: server_die_fd,
+                                      toWriteS: "ctypes.int(0xDEAD)",
+                                      length: 4
+                                    }, function writeAck(err) {
+          debug("Finished writing to die_fd ret=" + JSON.stringify(err));
+          workersToClean.forEach(function(w) {
+            w.emit("cleanup", null, function cleaned() {
+              w.terminate();
+              debug("Closed successfully");
+              waitForAll(x++);
+            });
           });
         });
       });
-    }, 1000);
+    });
 
     function waitForAll(x) {
       if (x >= workersToClean.length) {

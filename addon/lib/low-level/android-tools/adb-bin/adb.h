@@ -279,6 +279,8 @@ struct adb_main_input {
   // listen to this file-descriptor and die when it is written to
   int exit_fd;
 
+  void (*on_track_ready)();
+
   int (*spawnIO)(atransport*);
   int (*spawnD)();
 };

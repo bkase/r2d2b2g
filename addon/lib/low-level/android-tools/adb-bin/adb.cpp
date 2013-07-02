@@ -1342,6 +1342,8 @@ void * server_thread(void * args) {
 
   int exit_fd = input->exit_fd;
 
+  void (*on_track_ready)() = input->on_track_ready;
+
   int (*spawnIO)(atransport*) = input->spawnIO;
   int (*spawnD)() = input->spawnD;
 
@@ -1511,6 +1513,8 @@ void * server_thread(void * args) {
 #endif
         start_logging();
     }
+
+    on_track_ready();
 
     printf("Starting event loop...\n");
     fdevent_loop(exit_fd);

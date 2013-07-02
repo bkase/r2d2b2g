@@ -84,6 +84,8 @@ const struct_adb_main_input =
 
     { exit_fd: ctypes.int },
 
+    { on_track_ready: ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, []).ptr },
+
     { spawnIO: ctypes.FunctionType(ctypes.default_abi, ctypes.int, [ atransport.ptr ]).ptr },
     { spawnD: ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr }
   ]);

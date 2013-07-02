@@ -68,6 +68,14 @@ worker.once("start", function({ port }) {
   input.contents.server_port = port;
   input.contents.is_lib_call = 1;
 
+  let onTrackReadyfn = function onTrackReady() {
+    console.log("onTrackReady");
+    worker.emitAndForget("track-ready", { });
+  };
+
+  input.contents.on_track_ready =
+    ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, []).ptr(onTrackReadyfn);
+
   let spawnIOfn = function spawnIO(t_ptr) {
     debug("spawnIO was called from C, with voidPtr: " + t_ptr.toString());
     worker.runOnPeerThread(function spawnIO_task(t_ptr_strS, workerURIS) {
