@@ -22,13 +22,11 @@ mv no-$FILE $FILE
 case `uname` in
   MINGW*)
     LIB=libadb.dll
-    rm ../data/$LIB
-    cp /c/Users/bkase/Documents/Visual\ Studio\ 2012/Projects/AdbLib/Debug/AdbLib5.dll ../data/$LIB
     ;;
   *)
     LIB=libadb.so
-    make -C ../lib/low-level/android-tools
-    cp ../lib/low-level/android-tools/adb-bin/$LIB ../data/$LIB
+    make -C ../../android-tools
+    cp ../../android-tools/adb-bin/$LIB ../data/$LIB
     ;;
 esac
 
