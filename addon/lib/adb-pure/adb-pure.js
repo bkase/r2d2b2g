@@ -235,14 +235,7 @@ module.exports = {
     debug("After stopTrackingDevices");
     let workersToClean = [serverWorker, ioWorker, utilWorker];
 
-    // NOTE: the output thread should be manually terminated, the input thread
-    //       will be terminated safely by the kill-ioPump message to
-    //       the util worker
-    debug("Terminating outputThread");
-    context.outputThread.terminate();
-    utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
-      debug("killIOAck received");
-      // NOTE: this call will return immediately for now, but it needs at most 100ms to close on OSX
+    function continueKilling() {
       utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
         debug("killDevAck received");
         // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
@@ -260,7 +253,7 @@ module.exports = {
           });
         });
       });
-    });
+    }
 
     function waitForAll(x) {
       if (x >= workersToClean.length) {
@@ -271,6 +264,22 @@ module.exports = {
         debug("ALL workers are terminated");
         cb();
       }
+    }
+
+    // TODO: This might be less complex with promises
+    if (context.outputThread) {
+      // NOTE: the output thread should be manually terminated, the input thread
+      //       will be terminated safely by the kill-ioPump message to
+      //       the util worker
+      debug("Terminating outputThread");
+      context.outputThread.terminate();
+      utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
+        debug("killIOAck received");
+        // NOTE: this call will return immediately for now, but it needs at most 100ms to close on OSX
+        continueKilling();
+      });
+    } else {
+      continueKilling();
     }
   }
 };
