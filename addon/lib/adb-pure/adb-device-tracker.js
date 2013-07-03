@@ -11,7 +11,9 @@
 
 const { Cc, Ci, Cr, Cu } = require("chrome");
 const { Class } = require("sdk/core/heritage");
-const { AdbClient } = require("adb-pure/adb-client");
+const client = require("adb-pure/adb-client");
+
+Cu.import("resource://gre/modules/Services.jsm");
 
 let { TextDecoder } = Cu.import("resource://gre/modules/Services.jsm");
 
@@ -19,39 +21,37 @@ function debug() {
   console.log.apply(console, ["AdbDeviceTracker: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
-let AdbDeviceTracker = Class({
-  implements: [ AdbClient ],
-  initialize: function initialize(cb) {
-    AdbClient.prototype.initialize.call(this);
-    // TODO: Use something else besides callbacks for changes (observers?)
-    this._cb = cb;
-
-    this._waitForFirst = true;
-    this._devices = { };
-    this._startTrackingDevices();
+let waitForFirst = true;
+let devices = { };
+let socket;
+let hasDevice = false;
+module.exports = {
+  get hasDevice() {
+    return hasDevice;
   },
 
-  _startTrackingDevices: function startTrackingDevices() {
-    let socket = this._connect();
-    socket.onopen = (function() {
+  start: function track_start() {
+    socket = client.connect();
+    Services.obs.notifyObservers(null, "adb-track-devices-start", null);
+
+    socket.s.onopen = function() {
       debug("trackDevices onopen");
       // Services.obs.notifyObservers(null, "adb-track-devices-start", null);
-      let req = this._createRequest("host:track-devices");
-      this._sockSend(socket, req);
-    }).bind(this);
+      let req = client.createRequest("host:track-devices");
+      socket.send(req);
+    };
 
-    socket.onerror = (function(event) {
+    socket.s.onerror = function(event) {
       debug("trackDevices onerror: " + event.data);
-      // this._cb({ topic: "adb-track-devices-stop" });
-      // Services.obs.notifyObservers(null, "adb-track-devices-stop", null);
-    }).bind(this);
-    
-    socket.onclose = (function() {
-      debug("trackDevices onclose");
-      // Services.obs.notifyObservers(null, "adb-track-devices-stop", null);
-    }).bind(this);
+      Services.obs.notifyObservers(null, "adb-track-devices-stop", null);
+    };
 
-    socket.ondata = (function(aEvent) {
+    socket.s.onclose = function() {
+      debug("trackDevices onclose");
+      Services.obs.notifyObservers(null, "adb-track-devices-stop", null);
+    };
+
+    socket.s.ondata = function(aEvent) {
       debug("trackDevices ondata");
       let data = aEvent.data;
       debug("length=" + data.byteLength);
@@ -59,24 +59,25 @@ let AdbDeviceTracker = Class({
       debug(dec.decode(new Uint8Array(data)).trim());
 
       // check the OKAY or FAIL on first packet.
-      if (this._waitForFirst) {
-        if (!this._checkResponse(data)) {
+      if (waitForFirst) {
+        if (!client.checkResponse(data)) {
           socket.close();
           return;
         }
       }
 
-      let packet = this._unpackPacket(data, !this._waitForFirst);
-      this._waitForFirst = false;
+      let packet = client.unpackPacket(data, !waitForFirst);
+      waitForFirst = false;
 
       if (packet.data == "") {
+        hasDevice = false;
         // All devices got disconnected.
-        for (let dev in this._devices) {
-          this._devices[dev] = false;
-          this._cb({ topic: "adb-device-disconnected", dev: dev });
-          // Services.obs.notifyObservers(null, "adb-device-disconnected", dev);
+        for (let dev in devices) {
+          devices[dev] = false;
+          Services.obs.notifyObservers(null, "adb-device-disconnected", dev);
         }
       } else {
+        hasDevice = true;
         // One line per device, each line being $DEVICE\t(offline|device)
         let lines = packet.data.split("\n");
         let newDev = {};
@@ -90,21 +91,21 @@ let AdbDeviceTracker = Class({
         });
         // Check which device changed state.
         for (let dev in newDev) {
-          if (this._devices[dev] != newDev[dev]) {
-            if (dev in this._devices || newDev[dev]) {
+          if (devices[dev] != newDev[dev]) {
+            if (dev in devices || newDev[dev]) {
               let topic = newDev[dev] ? "adb-device-connected"
                                       : "adb-device-disconnected";
-              // Services.obs.notifyObservers(null, topic, dev);
-              this._cb({ topic: topic, dev: dev });
+              Services.obs.notifyObservers(null, topic, dev);
             }
-            this._devices[dev] = newDev[dev];
+            devices[dev] = newDev[dev];
           }
         }
       }
-    }).bind(this);
+    };
   },
 
-});
-
-exports.AdbDeviceTracker = AdbDeviceTracker;
+  stop: function track_stop() {
+    socket.close();
+  }
+}
 

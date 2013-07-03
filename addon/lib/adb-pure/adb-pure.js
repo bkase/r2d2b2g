@@ -13,9 +13,9 @@ const WORKER_URL_IO = URL_PREFIX + "adb-io-thread.js";
 const WORKER_URL_UTIL = URL_PREFIX + "adb-utility-thread.js";
 
 const EventedChromeWorker = require("adb-pure/evented-chrome-worker").EventedChromeWorker;
-const AdbDeviceTracker = require("adb-pure/adb-device-tracker").AdbDeviceTracker;
-const AdbFileTransfer = require("adb-pure/adb-file-transfer").AdbFileTransfer;
-const AdbCommandRunner = require("adb-pure/adb-command-runner").AdbCommandRunner;
+const deviceTracker = require("adb-pure/adb-device-tracker");
+const fileTransfer = require("adb-pure/adb-file-transfer");
+const commandRunner = require("adb-pure/adb-command-runner");
 const timers = require("timers");
 const URL = require("url");
 const env = require("api-utils/environment").env;
@@ -42,11 +42,7 @@ let context = { __workers: [], // this array is populated automatically by Event
 const DEVICE_NOT_CONNECTED = "Device not connected";
 exports.DEVICE_NOT_CONNECTED = DEVICE_NOT_CONNECTED;
 
-let hasDevice = false;
-
 let server_die_fd = null;
-
-let adbClients;
 
 let ready = false;
 let didRunInitially = false;
@@ -55,15 +51,6 @@ const psRegexWin = /adb.exe.*/;
 
 function debug() {
   console.log.apply(console, ["AdbPure: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
-function trackDevices(cb) {
-  let adbDeviceTracker = new AdbDeviceTracker(cb);
-  adbClients.push(adbDeviceTracker);
-}
-
-function stopTrackingDevices() {
-  adbClients.forEach(function(c) c instanceof AdbDeviceTracker && c.close());
 }
 
 function queryService(service, deferred) {
@@ -111,18 +98,10 @@ module.exports = {
         debug("Didn't find ADB process running, restarting");
 
         this.didRunInitially = true;
-        this._startAdbInBackground(function(data) {
-          if (data.topic === "adb-device-connected") {
-            Services.obs.notifyObservers(null, data.topic, data.dev);
-          } else if (data.topic === "adb-device-disconnected") {
-            Services.obs.notifyObservers(null, data.topic, data.dev);
-          }
-        });
-
+        this._startAdbInBackground();
       }).bind(this));
   },
-  _startAdbInBackground: function startAdbInBackground(deviceTrackerCb) {
-    adbClients = [];
+  _startAdbInBackground: function startAdbInBackground() {
     this.ready = true;
 
     serverWorker = new EventedChromeWorker(WORKER_URL_SERVER, "server_thread", context);
@@ -139,19 +118,8 @@ module.exports = {
       server_die_fd = fd;
     });
     serverWorker.onceAndForget("track-ready", function trackack() {
-      trackDevices(function(data) {
-        debug("Tracked device in init: " + JSON.stringify(data));
-        if (data.topic === "adb-device-disconnected") {
-          hasDevice = false;
-        } else if (data.topic === "adb-device-connected") {
-          hasDevice = true;
-        } else {
-          throw "Strange topic in device tracker";
-        }
-        deviceTrackerCb(data);
-      });
+      deviceTracker.start();
     });
-
 
     [ioWorker, utilWorker].forEach(function initworker(w) {
       w.emit("init", { libPath: libPath,
@@ -212,26 +180,17 @@ module.exports = {
 
   pushFile: function pushFile(srcPath, destPath) {
     let deferred = Promise.defer();
-    if (!hasDevice) {
+    if (!deviceTracker.hasDevice) {
       deferred.reject(DEVICE_NOT_CONNECTED);
       return deferred.promise;
     }
 
-    let adbFileTransfer = new AdbFileTransfer();
-    let t = adbFileTransfer.pushFile(srcPath, destPath);
-    return t.then(
-        function success(e) {
-          adbFileTransfer.close();
-          return e;
-        },
-        function fail(e) {
-          adbFileTransfer.close();
-        });
+    return fileTransfer.pushFile(srcPath, destPath);
   },
 
   forwardPort: function forwardPort(port) {
     let deferred = Promise.defer();
-    if (!hasDevice) {
+    if (!deviceTracker.hasDevice) {
       deferred.reject(DEVICE_NOT_CONNECTED);
       return deferred.promise;
     }
@@ -250,7 +209,7 @@ module.exports = {
 
   shell: function shell(shellCommand) {
     let deferred = Promise.defer();
-    if (!hasDevice) {
+    if (!deviceTracker.hasDevice) {
       deferred.reject(DEVICE_NOT_CONNECTED);
       return deferred.promise;
     }
@@ -266,24 +225,13 @@ module.exports = {
 
   listDevices: function listDevices() {
     debug("Listing devices");
-    let adbCommandRunner = new AdbCommandRunner();
-    let d = adbCommandRunner.devices();
-    return d.then(
-        function success(e) {
-          adbCommandRunner.close();
-          return e;
-        },
-        function fail(e) {
-          debug("Failed: " + e);
-          adbCommandRunner.close();
-          return e;
-        });
+    return commandRunner.devices();
   },
 
   close: function close(cb) {
     debug("Closing - ");
     let x = 1;
-    stopTrackingDevices();
+    deviceTracker.stop();
     debug("After stopTrackingDevices");
     let workersToClean = [serverWorker, ioWorker, utilWorker];
 

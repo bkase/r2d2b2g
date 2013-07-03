@@ -13,84 +13,67 @@ const { Cu, Cc, Ci } = require("chrome");
 
 const Promise = require("sdk/core/promise");
 const { Class } = require("sdk/core/heritage");
-const { AdbClient } = require("adb-pure/adb-client");
+const client = require("adb-pure/adb-client");
 
 function debug() {
   console.log.apply(console, ["AdbCommandRunner: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
-let AdbCommandRunner = Class({
-  implements: [ AdbClient ],
-  initialize: function initialize() {
-    AdbClient.prototype.initialize.call(this);
-  },
+function runCommand(aCommand) {
+  debug("runCommand " + aCommand);
+  let deferred = Promise.defer();
 
-  devices: function devices() {
-    debug("devices");
-    let deferred = Promise.defer();
+  let socket = client.connect();
+  socket.s.onopen = function() {
+    let req = client.createRequest(aCommand);
+    socket.send(req);
+  };
+  socket.s.onerror = function() {
+    debug("runCommand onerror");
+    deferred.reject("NETWORK_ERROR");
+  };
+  socket.s.onclose = function() {
+    debug("runCommand onclose");
+  };
+  socket.s.ondata = function(aEvent) {
+    debug("runCommand ondata");
+    let data = aEvent.data;
 
-    let promise = this._runCommand("host:devices");
-
-    return promise.then(
-      function onSuccess(data) {
-        let lines = data.split("\n");
-        let res = [];
-        lines.forEach(function(aLine) {
-          if (aLine.length == 0) {
-            return;
-          }
-          let [device, status] = aLine.split("\t");
-          res.push([device, status]);
-        });
-        return res;
-      }
-    );
-  },
-
-  _runCommand: function runCommand(aCommand) {
-    debug("runCommand " + aCommand);
-    let deferred = Promise.defer();
-
-    let socket = this._connect();
-    let waitForFirst = true;
-    let devices = {};
-
-    socket.onopen = function() {
-      debug("runCommand onopen");
-      let req = this._createRequest(aCommand);
-      this._sockSend(socket, req);
-
-    }.bind(this);
-
-    socket.onerror = function() {
-      debug("runCommand onerror");
-      deferred.reject("NETWORK_ERROR");
+    if (!client.checkResponse(data)) {
+      socket.close();
+      let packet = client.unpackPacket(data, false);
+      debug("Error: " + packet.data);
+      deferred.reject("PROTOCOL_ERROR");
+      return;
     }
 
-    socket.onclose = function() {
-      debug("runCommand onclose");
+    let packet = client.unpackPacket(data, false);
+    deferred.resolve(packet.data);
+  };
+
+
+  return deferred.promise;
+}
+
+exports.devices = function devices() {
+  debug("devices");
+  let deferred = Promise.defer();
+
+  let promise = runCommand("host:devices");
+
+  return promise.then(
+    function onSuccess(data) {
+      let lines = data.split("\n");
+      let res = [];
+      lines.forEach(function(aLine) {
+        if (aLine.length == 0) {
+          return;
+        }
+        let [device, status] = aLine.split("\t");
+        res.push([device, status]);
+      });
+      return res;
     }
-
-    socket.ondata = function(aEvent) {
-      debug("runCommand ondata");
-      let data = aEvent.data;
-
-      if (!this._checkResponse(data)) {
-        socket.close();
-        let packet = this._unpackPacket(data, false);
-        debug("Error: " + packet.data);
-        deferred.reject("PROTOCOL_ERROR");
-        return;
-      }
-
-      let packet = this._unpackPacket(data, false);
-      deferred.resolve(packet.data);
-    }.bind(this);
-
-
-    return deferred.promise;
-  }
-});
-
-exports.AdbCommandRunner = AdbCommandRunner;
+  );
+}
 

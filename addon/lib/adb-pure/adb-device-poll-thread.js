@@ -20,7 +20,7 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
-let I = null;
+const I = new Instantiator;
 let libadb = null;
 
 function debug() {
@@ -28,8 +28,6 @@ function debug() {
 }
 
 worker.once("init", function({ libPath, driversPath, platform }) {
-  I = new Instantiator();
-
   libadb = ctypes.open(libPath);
 
   // on Linux, fallback to pthreads here

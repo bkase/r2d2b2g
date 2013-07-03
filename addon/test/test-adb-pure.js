@@ -1,7 +1,7 @@
 const adb = require("adb-pure/adb-pure");
 const timer = require("timer");
 const Promise = require("sdk/core/promise");
-const { Cu } = require("chrome");
+const { Cu, Ci } = require("chrome");
 /* const OS = */ Cu.import("resource://gre/modules/osfile.jsm");
 const { rootURI: ROOT_URI } = require('@loader/options');
 const TEST_URI = ROOT_URI + "resources/r2d2b2g/tests/";
@@ -9,18 +9,37 @@ const URL = require("url");
 
 const file = require("sdk/io/file");
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+
 let isPhonePluggedIn = null;
 
-// Before all
-adb._startAdbInBackground(function(data) {
-  if (data.topic === "adb-device-disconnected") {
-    isPhonePluggedIn = false;
-  } else if (data.topic === "adb-device-connected") {
-    isPhonePluggedIn = true;
-  } else {
-    throw "Strange topic in device tracker";
+let observer = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference]),
+  observe: function observe(subject, topic, data) {
+    console.log("simulator.observe: " + topic);
+    switch (topic) {
+      case "adb-ready":
+        console.log("Observed!");
+        break;
+      case "adb-device-connected":
+        console.log("Observed!");
+        isPhonePluggedIn = true;
+        break;
+      case "adb-device-disconnected":
+        console.log("Observed!");
+        isPhonePluggedIn = false;
+        break;
+    }
   }
-});
+};
+
+Services.obs.addObserver(observer, "adb-device-connected", true);
+Services.obs.addObserver(observer, "adb-device-disconnected", true);
+
+// Before all
+adb._startAdbInBackground();
 
 console.log();
 console.log("***************************************");
