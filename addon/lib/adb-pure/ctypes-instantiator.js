@@ -8,7 +8,12 @@
 
 'use strict';
 
-;(function(exports) {
+;(function(exports, module) {
+
+  if (module) {
+    const { Cu } = require("chrome");
+    Cu.import("resource://gre/modules/ctypes.jsm");
+  }
 
   function Instantiator() {
     this._memo = [];
@@ -41,5 +46,5 @@
 
 }).apply(null,
   typeof module !== 'undefined' ?
-       [exports] : [this]);
+       [exports, module] : [this]);
 

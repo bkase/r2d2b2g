@@ -16,6 +16,7 @@ const EventedChromeWorker = require("adb-pure/evented-chrome-worker").EventedChr
 const deviceTracker = require("adb-pure/adb-device-tracker");
 const fileTransfer = require("adb-pure/adb-file-transfer");
 const commandRunner = require("adb-pure/adb-command-runner");
+const blockingNative = require("adb-pure/adb-blocking-native");
 const timers = require("timers");
 const URL = require("url");
 const env = require("api-utils/environment").env;
@@ -104,6 +105,7 @@ module.exports = {
   _startAdbInBackground: function startAdbInBackground() {
     this.ready = true;
 
+    blockingNative.init(platform, libPath, driversPath);
     serverWorker = new EventedChromeWorker(WORKER_URL_SERVER, "server_thread", context);
     ioWorker = new EventedChromeWorker(WORKER_URL_IO, "io_thread", context);
     utilWorker = new EventedChromeWorker(WORKER_URL_UTIL, "util_thread", context);
@@ -228,59 +230,33 @@ module.exports = {
     return commandRunner.devices();
   },
 
-  close: function close(cb) {
+  close: function close() {
+    let t0 = Date.now();
     debug("Closing - ");
     let x = 1;
     deviceTracker.stop();
     debug("After stopTrackingDevices");
-    let workersToClean = [serverWorker, ioWorker, utilWorker];
 
-    function continueKilling() {
-      utilWorker.emit("kill-deviceLoop", { }, function killDevAck() {
-        debug("killDevAck received");
-        // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
-        ioWorker.emit("writeFully", { fd: server_die_fd,
-                                      toWriteS: "ctypes.int(0xDEAD)",
-                                      length: 4
-                                    }, function writeAck(err) {
-          debug("Finished writing to die_fd ret=" + JSON.stringify(err));
-          workersToClean.forEach(function(w) {
-            w.emit("cleanup", null, function cleaned() {
-              w.terminate();
-              debug("Closed successfully");
-              waitForAll(x++);
-            });
-          });
-        });
-      });
-    }
-
-    function waitForAll(x) {
-      if (x >= workersToClean.length) {
-        context.__workers.forEach(function(w) {
-          debug("Killing Worker: " + w.tag)
-          w.terminate();
-        });
-        debug("ALL workers are terminated");
-        cb();
-      }
-    }
-
-    // TODO: This might be less complex with promises
     if (context.outputThread) {
-      // NOTE: the output thread should be manually terminated, the input thread
-      //       will be terminated safely by the kill-ioPump message to
-      //       the util worker
       debug("Terminating outputThread");
       context.outputThread.terminate();
-      utilWorker.emit("kill-ioPump", { t_ptrS: context.t_ptrS }, function killIOAck() {
-        debug("killIOAck received");
-        // NOTE: this call will return immediately for now, but it needs at most 100ms to close on OSX
-        continueKilling();
-      });
-    } else {
-      continueKilling();
+      blockingNative.killIOPump(context.t_ptrS);
     }
+
+    // this might take 100ms on OSX...
+    blockingNative.killDeviceLoop();
+    debug("killDevAck received");
+    // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
+    let res = blockingNative.writeFully(server_die_fd, "ctypes.int(0xDEAD)", 4);
+    debug("Finished writing to die_fd ret=" + JSON.stringify(res));
+    blockingNative.cleanupNativeCode();
+    context.__workers.forEach(function(w) {
+      debug("Killing Worker: " + w.tag)
+      w.terminate();
+    });
+    debug("ALL workers are terminated");
+    let t1 = Date.now();
+    debug("Closing took: " + (t1 - t0) + "ms");
   }
 };
 

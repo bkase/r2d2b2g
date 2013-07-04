@@ -54,6 +54,8 @@ let gCurrentToolbox, gCurrentToolboxManifestURL;
 let gConnectingToApp = false;
 let gRunningApps = [];
 
+let hasStartedShutdown = false;
+
 let simulator = module.exports = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
@@ -69,11 +71,12 @@ let simulator = module.exports = {
     // which we need to do on Windows to replace the files.
     this.kill();
 
-    if (ADB.didRunInitially) {
-      // TODO: This doesn't work because unload doesn't pop the event queue (will we have to synchronize this?)
-      ADB.close(function closed() {
-        console.log("Terminated ADB successfully");
-      });
+
+    // make sure we only shutdown ADB once and we only shut it down when the
+    // actual onUnload event fires (the `&& reason`)
+    if (ADB.didRunInitially && !hasStartedShutdown && reason) {
+      hasStartedShutdown = true;
+      ADB.close();
     }
 
     // Close the Dashboard if the user is disabling or updating the addon.

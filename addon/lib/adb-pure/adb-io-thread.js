@@ -11,8 +11,9 @@ const URL_PREFIX = self.location.href.replace(/adb\-io\-thread\.js/, "");
 const INSTANTIATOR_URL = URL_PREFIX + "ctypes-instantiator.js";
 const EVENTED_CHROME_WORKER_URL = URL_PREFIX + "evented-chrome-worker.js";
 const CONSOLE_URL = URL_PREFIX + "worker-console.js";
+const IOUTILS_URL = URL_PREFIX + "io-utils.js";
 
-importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL);
+importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, IOUTILS_URL);
 
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
@@ -23,65 +24,23 @@ function debug() {
 
 let I = null;
 let libadb = null;
+let io;
 worker.once("init", function({ libPath }) {
   I = new Instantiator();
 
   libadb = ctypes.open(libPath);
 
-  I.declare({ name: "read_fd",
-              returns: ctypes.int,
-              // fd, buffer, size
-              args: [ctypes.int, ctypes.char.ptr, ctypes.int]
-            }, libadb);
-
-  I.declare({ name: "write_fd",
-              returns: ctypes.int,
-              // fd, buffer, size
-              args: [ctypes.int, ctypes.char.ptr, ctypes.int]
-            }, libadb);
+  io = ioUtils(I, libadb);
 });
 
 worker.listen("readStringFully", function({ fd, tag }) {
-  let read = I.use("read_fd");
-  let size = 4096;
-  let buffer = new ctypes.ArrayType(ctypes.char, 4096)();
-
-  debug("Buffer constructed successfully");
-  while (true) {
-    let len = read(fd, buffer, size-1);
-    buffer[len] = 0; // null-terminate the string
-
-    if (len == 0) {
-      break; // we're done
-    } else {
-      worker.emitAndForget(tag + ":data", { data: buffer.readString() });
-    }
-  }
-
-  return { ret: 0 };
+  io.readStringFully(fd, tag, function onData(strChunk) {
+    worker.emitAndForget(tag + ":data", { data: strChunk });
+  });
 });
 
 worker.listen("writeFully", function({ fd, toWriteS, length }) {
-  let write = I.use("write_fd");
-  let val = eval(toWriteS);
-  let buffer = ctypes.cast(val.address(), ctypes.char.ptr);
-  let r;
-
-  debug("fd: " + fd + ", buf: " + buffer + " len: " + length);
-  while(length > 0) {
-    r = write(fd, buffer, length);
-    if(r > 0) {
-      length -= r;
-      buffer += r;
-    } else {
-      if (r < 0) {
-        debug("writex error");
-        return { ret: -1 };
-      }
-    }
-  }
-
-  return { ret: 0 };
+  return { ret: io.writeFully(fd, toWriteS, length) };
 });
 
 worker.listen("cleanup", function() {

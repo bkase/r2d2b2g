@@ -180,10 +180,9 @@ exports["test f adb push, with phone"] = function (assert, done) {
 
 exports["test zz after"] = function(assert, done) {
   console.log("AFTER!");
-  adb.close(function() {
-    assert.ok(true, "Done!");
-    done();
-  });
+  adb.close();
+  assert.ok(true, "Done!");
+  done();
 };
 
 require("test").run(exports);
