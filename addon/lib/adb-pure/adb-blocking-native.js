@@ -6,9 +6,11 @@
 
 const { Cu } = require("chrome");
 Cu.import("resource://gre/modules/ctypes.jsm");
+const { platform } = require("system");
 
 const { Instantiator } = require("adb-pure/ctypes-instantiator");
-const { atransport, AdbCloseHandleType }  = require("adb-pure/adb-types");
+const { unpackPtr, atransport, AdbCloseHandleType, NULL } =
+    require("adb-pure/adb-types");
 const { ioUtils } = require("adb-pure/io-utils");
 
 function debug() {
@@ -16,12 +18,10 @@ function debug() {
 }
 
 const I = new Instantiator();
-let platform_;
 let libadb, libadbdrivers;
 let io;
 module.exports = {
-  init: function init(platform, libPath, driversPath) {
-    platform_ = platform;
+  init: function init(libPath, driversPath) {
     libadb = ctypes.open(libPath);
 
     io = ioUtils(I, libadb);
@@ -45,52 +45,47 @@ module.exports = {
                   returns: AdbCloseHandleType.returnType,
                   args: AdbCloseHandleType.argTypes
                 }, libadbdrivers);
-
-
-      I.declare({ name: "on_kill_io_pump",
-                  returns: ctypes.void_t,
-                  args: [ atransport.ptr, AdbCloseHandleType.ptr ]
-                }, libadb);
-    } else {
-      I.declare({ name: "on_kill_io_pump",
-                  returns: ctypes.void_t,
-                  args: [ atransport.ptr ]
-                }, libadb);
     }
+
+    I.declare({ name: "on_kill_io_pump",
+                returns: ctypes.void_t,
+                args: [ atransport.ptr, AdbCloseHandleType.ptr ]
+              }, libadb);
   },
 
   cleanupNativeCode: function cleanupNativeCode() {
     debug("Cleaning up native code");
     I.use("cleanup")();
     libadb.close();
-    if (platform_ === "winnt") {
+    if (platform === "winnt") {
       libadbdrivers.close();
     }
   },
 
   killDeviceLoop: function killDeviceLoop() {
     // if we're not on OSX, we don't have to do anything
-    if (platform_ === "darwin") {
+    if (platform === "darwin") {
       // The RunLoopThread might take up to 100ms to close
       I.use("kill_device_loop")();
     }
   },
 
   killIOPump: function killIOPump(t_ptrS) {
-    let bridge;
-    if (platform_ === "winnt") {
-      bridge = function close_bridge() {
+    let t_ptr = unpackPtr(t_ptrS, atransport.ptr);
+    let close_handle_func;
+    if (platform === "winnt") {
+      let bridge = function close_bridge() {
         let f = I.use("AdbCloseHandle");
         // call the real DLL function with the arguments to the bridge call
         return f.apply(f, arguments);
       };
+      close_handle_func = AdbCloseHandleType.ptr(bridge);
     } else {
-      bridge = null
+      close_handle_func = ctypes.cast(NULL, AdbCloseHandleType.ptr);
     }
 
     let onKillIOPump = I.use("on_kill_io_pump");
-    onKillIOPump.apply(onKillIOPump,
-                       [eval(t_ptrS)].concat((bridge) ? [AdbCloseHandleType.ptr(bridge)] : []));
+    onKillIOPump.apply(onKillIOPump, [t_ptr, close_handle_func]);
   },
 
   writeFully: function writeFully(fd, toWriteS, length) {

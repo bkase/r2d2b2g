@@ -37,18 +37,6 @@ worker.once("init", function({ libPath }) {
               args: [ struct_adb_main_input.ptr ]
             }, libadb);
 
-  I.declare({ name: "malloc_",
-              returns: ctypes.void_t.ptr,
-              // size in bytes
-              args: [ctypes.int]
-            }, libadb);
-
-  I.declare({ name: "free_",
-              returns: ctypes.void_t,
-              // ptr
-              args: [ctypes.void_t.ptr]
-            }, libadb);
-
   I.declare({ name: "socket_pipe",
               returns: ctypes.void_t,
               // the two ends of the pipe (sv)
@@ -59,34 +47,32 @@ worker.once("init", function({ libPath }) {
 worker.once("start", function({ port }) {
   //let main = I.use("adb_main");
   let main = I.use("main_server");
-  let malloc = I.use("malloc_");
 
-  // struct adb_main_input *
-  let input = ctypes.cast(malloc(struct_adb_main_input.size), struct_adb_main_input.ptr);
-
-  input.contents.is_daemon = 0;
-  input.contents.server_port = port;
-  input.contents.is_lib_call = 1;
+  // struct adb_main_input
+  let contents = {
+    is_daemon: 0,
+    server_port: port,
+    is_lib_call: 1
+  };
 
   let onTrackReadyfn = function onTrackReady() {
     console.log("onTrackReady");
     worker.emitAndForget("track-ready", { });
   };
 
-  input.contents.on_track_ready =
+  contents.on_track_ready =
     ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, []).ptr(onTrackReadyfn);
 
   let spawnIOfn = function spawnIO(t_ptr) {
     debug("spawnIO was called from C, with voidPtr: " + t_ptr.toString());
-    worker.runOnPeerThread(function spawnIO_task(t_ptr_strS, workerURIS) {
-      let [t_ptr_str, workerURI] = [JSON.parse(t_ptr_strS), JSON.parse(workerURIS)];
-
+    let t_ptrS = packPtr(t_ptr);
+    debug("packed ptr: " + t_ptrS);
+    worker.runOnPeerThread(function spawnIO_task(t_ptrS, workerURI) {
       let inputThread = this.newWorker(workerURI, "input_thread");
       inputThread.emitAndForget("init",
         { libPath: context.libPath,
           threadName: "device_input_thread",
-          argTypesStrings: ["atransport.ptr"],
-          argStrings: [t_ptr_str],
+          t_ptrS: t_ptrS,
           platform: context.platform,
           driversPath: context.driversPath
         });
@@ -95,34 +81,31 @@ worker.once("start", function({ port }) {
       outputThread.emitAndForget("init",
         { libPath: context.libPath,
           threadName: "device_output_thread",
-          argTypesStrings: ["atransport.ptr"],
-          argStrings: [t_ptr_str],
+          t_ptrS: t_ptrS,
           platform: context.platform,
           driversPath: context.driversPath
         });
 
       this.context.outputThread = outputThread;
-      this.context.t_ptrS = t_ptr_str;
+      this.context.t_ptrS = t_ptrS;
 
-    }, t_ptr.toString(), WORKER_URL_IO_THREAD_SPAWNER);
+    }, t_ptrS, WORKER_URL_IO_THREAD_SPAWNER);
   };
 
-  input.contents.spawnIO = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [atransport.ptr]).ptr(spawnIOfn);
+  contents.spawnIO = ctypes.FunctionType(ctypes.default_abi, ctypes.int, [atransport.ptr]).ptr(spawnIOfn);
 
 
   // NOTE: on linux this will not be called
   let spawnDfn = function() {
     debug("spawnD was actually called from C!!!");
-    worker.runOnPeerThread(function spawnD_task(workerURIS) {
-      let [workerURI] = [JSON.parse(workerURIS)]
-
+    worker.runOnPeerThread(function spawnD_task(workerURI) {
       let devicePollWorker = this.newWorker(workerURI, "device_poll_thread");
       devicePollWorker.emitAndForget("init", { libPath: context.libPath, driversPath: context.driversPath, platform: context.platform });
 
     }, WORKER_URL_DEVICE_POLL);
   };
 
-  input.contents.spawnD = ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr(spawnDfn);
+  contents.spawnD = ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr(spawnDfn);
 
 
 
@@ -130,9 +113,10 @@ worker.once("start", function({ port }) {
   I.use("socket_pipe")(pipe);
   worker.emitAndForget("kill-server-fd", { fd: pipe[0] });
 
-  input.contents.exit_fd = pipe[1];
+  contents.exit_fd = pipe[1];
+  let input = struct_adb_main_input(contents);
   // NOTE: this will loop forever (until signal-ed)
-  let x = main(input);
+  let x = main(input.address());
   debug("Main returned; " + x);
   return { ret: x };
 });

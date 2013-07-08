@@ -105,7 +105,7 @@ module.exports = {
   _startAdbInBackground: function startAdbInBackground() {
     this.ready = true;
 
-    blockingNative.init(platform, libPath, driversPath);
+    blockingNative.init(libPath, driversPath);
     serverWorker = new EventedChromeWorker(WORKER_URL_SERVER, "server_thread", context);
     ioWorker = new EventedChromeWorker(WORKER_URL_IO, "io_thread", context);
     utilWorker = new EventedChromeWorker(WORKER_URL_UTIL, "util_thread", context);
@@ -202,11 +202,7 @@ module.exports = {
 
     queryService(service, deferred);
 
-    return deferred.promise.then(
-        function onSuccess(data) {
-          return data;
-        }
-    );
+    return deferred.promise;
   },
 
   shell: function shell(shellCommand) {

@@ -139,10 +139,9 @@
 
     onceAndForget: function onceAndForget(msg, cb) {
       let idx;
-      let that = this;
       idx = this.listenAndForget(msg, (function ondata(d) {
         // free the listener
-        delete that.msgToCallbacksFree[msg][idx];
+        delete this.msgToCallbacksFree[msg][idx];
         return cb(d);
       }).bind(this));
     },
@@ -184,7 +183,7 @@
 
     runOnPeerThread: function runOnThread(task /*, serializableArgs... */) {
       let serializableArgs = Array.prototype.slice.call(arguments, 1);
-      let args = JSON.stringify(serializableArgs.map(JSON.stringify));
+      let args = JSON.stringify(serializableArgs);
 
       this.emitAndForget("_task", { task: task.toString(), args: args });
     },

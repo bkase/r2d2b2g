@@ -6,7 +6,7 @@
  * Core code
  */
 
-'use strict'; 
+'use strict';
 
 const URL_PREFIX = self.location.href.replace(/adb\-io\-thread\-spawner.js/, "");
 const INSTANTIATOR_URL = URL_PREFIX + "ctypes-instantiator.js";
@@ -27,12 +27,12 @@ function debug() {
 let I = null;
 let libadb = null;
 
-worker.once("init", function({ libPath, driversPath, threadName, argTypesStrings, argStrings, platform }) {
+worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platform }) {
   I = new Instantiator();
 
-  argTypesStrings = argTypesStrings || [];
-  argStrings = argStrings || [];
-  
+  let t_ptr = unpackPtr(t_ptrS, atransport.ptr);
+  debug("unpacked ptr: " + t_ptrS);
+
   libadb = ctypes.open(libPath);
 
   if (platform === "winnt") {
@@ -45,28 +45,30 @@ worker.once("init", function({ libPath, driversPath, threadName, argTypesStrings
       { "AdbWriteEndpointSync": AdbWriteEndpointSyncType },
       { "AdbCloseHandle": AdbCloseHandleType },
     ];
-    
-    let [struct_dll_io_bridge, io_bridge, ref] = new BridgeBuilder(I, libadbdrivers).build("dll_io_bridge", io_bridge_funcs);
-      
+
+    let [struct_dll_io_bridge, io_bridge, ref] =
+      new BridgeBuilder(I, libadbdrivers).
+      build("dll_io_bridge", io_bridge_funcs);
+
     I.declare({ name: threadName,
                 returns: ctypes.int,
-                args: argTypesStrings.map(function(x) eval(x)).concat([ struct_dll_io_bridge.ptr ])
+                args: [ atransport.ptr, struct_dll_io_bridge.ptr ]
               }, libadb);
 
-    debug("Spawning: " + threadName + " with args: " + argStrings);
+    debug("Spawning: " + threadName);
     let spawn = I.use(threadName);
 
-    return spawn.apply( spawn, argStrings.map(function(x) eval(x)).concat([ io_bridge.address() ]) );
+    return spawn.apply( spawn, [ t_ptr, io_bridge.address() ] );
   } else {
     I.declare({ name: threadName,
                 returns: ctypes.int,
-                args: argTypesStrings.map(function(x) eval(x))
+                args: [ atransport.ptr ]
               }, libadb);
 
-    debug("Spawning: " + threadName + " with args: " + argStrings);
+    debug("Spawning: " + threadName);
     let spawn = I.use(threadName);
 
-    return spawn.apply( spawn, argStrings.map(function(x) eval(x)) );
+    return spawn.apply( spawn, [ t_ptr ] );
   }
 });
 

@@ -1347,8 +1347,6 @@ void * server_thread(void * args) {
   int (*spawnIO)(atransport*) = input->spawnIO;
   int (*spawnD)() = input->spawnD;
 
-  free(input);
-
   if (is_lib_call) {
       printf("THIS needs to run!\n");
       transport_type ttype = kTransportAny;

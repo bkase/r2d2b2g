@@ -14,6 +14,7 @@
     Cu.import("resource://gre/modules/ctypes.jsm");
   }
 
+  const NULL = ctypes.cast(ctypes.uint64_t(0x0), ctypes.void_t.ptr);
   const AdbOpenAccessType = ctypes.int;
   const AdbOpenSharingMode = ctypes.int;
   const AdbInterfaceInfo =
@@ -107,6 +108,7 @@
     ]);
 
   module.exports = {
+    NULL: NULL,
     AdbOpenAccessType: AdbOpenAccessType,
     AdbOpenSharingMode: AdbOpenSharingMode,
     AdbInterfaceInfo: AdbInterfaceInfo,
@@ -150,6 +152,14 @@
     atransport: atransport,
 
     struct_adb_main_input: struct_adb_main_input,
+
+    packPtr: function packPointer(ptr) {
+      return ctypes.cast(ptr, ctypes.uint64_t).value.toString();
+    },
+
+    unpackPtr: function unpackPointer(str, type) {
+      return ctypes.cast(ctypes.uint64_t(str), type);
+    }
   };
 
   if (!isModule) {

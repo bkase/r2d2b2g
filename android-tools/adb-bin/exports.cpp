@@ -21,13 +21,8 @@ DLL_EXPORT int device_output_thread(atransport *, struct dll_io_bridge *);
 #ifdef __APPLE__
 void DLL_EXPORT kill_device_loop();
 #endif
-#ifdef WIN32
 DLL_EXPORT int usb_monitor(struct dll_bridge * bridge);
 DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
-#else
-DLL_EXPORT int usb_monitor();
-DLL_EXPORT void on_kill_io_pump(atransport * t);
-#endif
 
 // TODO: Figure out how to malloc straight from js-ctypes on mac osx
   DLL_EXPORT void * malloc_(int size) {
@@ -52,15 +47,9 @@ DLL_EXPORT void on_kill_io_pump(atransport * t);
   }
 #endif
 
-#ifdef WIN32
   DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)) {
     kill_io_pump(t, close_handle_func);
   }
-#else
-  DLL_EXPORT void on_kill_io_pump(atransport * t) {
-	  kill_io_pump(t, NULL);
-  }
-#endif
 
   //============================
   // FILE IO
@@ -102,13 +91,13 @@ DLL_EXPORT void on_kill_io_pump(atransport * t);
   }
 
 #ifdef __APPLE__
-  DLL_EXPORT int usb_monitor() {
+  DLL_EXPORT int usb_monitor(struct dll_bridge * unused) {
     return RunLoopThread(NULL);
   }
 #endif
 // on linux we can safely kill this thread with Worker::terminate
 #ifdef __linux__
-  DLL_EXPORT int usb_monitor() {
+  DLL_EXPORT int usb_monitor(struct dll_bridge * unused) {
     return device_poll_thread(NULL);
   }
 #endif

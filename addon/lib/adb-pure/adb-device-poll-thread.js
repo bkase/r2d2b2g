@@ -36,10 +36,10 @@ worker.once("init", function({ libPath, driversPath, platform }) {
   } else if (platform === "darwin") {
     I.declare({ name: "usb_monitor",
                 returns: ctypes.int,
-                args: []
+                args: [ ctypes.void_t.ptr ]
               }, libadb);
 
-    I.use("usb_monitor")();
+    I.use("usb_monitor")(NULL);
     debug("usb_monitor returned!");
   } else if (platform === "winnt") {
     debug("In platform: winnt");

@@ -56,15 +56,15 @@ exports["test a list devices"] = function(assert, done) {
       function success(e) {
         isPhonePluggedIn = (e.length > 0);
         if (isPhonePluggedIn) {
-          assert.ok(false, "Unplug your phone before starting the test bench");
+          assert.fail("Unplug your phone before starting the test bench");
           done();
           return;
         }
-        assert.ok(true, "Devices: " + JSON.stringify(e));
+        assert.pass("Devices: " + JSON.stringify(e));
         done();
       },
       function fail(e) {
-        assert.ok(false, "Failed to list devices: " + JSON.stringify(e));
+        assert.fail("Failed to list devices: " + JSON.stringify(e));
         done();
       });
   }, 2000);
@@ -74,7 +74,7 @@ exports["test b adb.shell, no phone"] = function (assert, done) {
   let command = "ls";
   adb.shell(command).then(
       function success(output) {
-        assert.ok(false, "Should reject promise when phone unplugged");
+        assert.fail("Should reject promise when phone unplugged");
         done();
       },
       function fail(e) {
@@ -94,7 +94,7 @@ exports["test c adb push, no phone"] = function (assert, done) {
   adb.pushFile(pathToFile,
                "/sdcard/test.txt").then(
     function success(e) {
-      assert.ok(false, "Should reject promise when phone unplugged");
+      assert.fail("Should reject promise when phone unplugged");
       done();
     },
     function fail(e) {
@@ -129,7 +129,7 @@ exports["test d plug phone back in"] = function(assert, done) {
       if (!isPhonePluggedIn) {
         loop();
       } else {
-        assert.ok(true, "Plugged in phone");
+        assert.pass("Plugged in phone");
         done();
       }
     }, 50);
@@ -145,7 +145,7 @@ exports["test e adb shell, with phone"] = function (assert, done) {
       done();
     },
     function fail(e) {
-      assert.ok(false, "Shell failed: " + JSON.stringify(e));
+      assert.fail("Shell failed: " + JSON.stringify(e));
       done();
     });
 };
@@ -168,12 +168,12 @@ exports["test f adb push, with phone"] = function (assert, done) {
         },
         function fail(e) {
           console.log("Error: " + e);
-          assert.ok(false, "Error catting");
+          assert.fail("Error catting");
           done();
         });
     },
     function fail(e) {
-      assert.ok(false, "Error pushing: " + e);
+      assert.fail("Error pushing: " + e);
       done();
     });
 };
@@ -181,7 +181,7 @@ exports["test f adb push, with phone"] = function (assert, done) {
 exports["test zz after"] = function(assert, done) {
   console.log("AFTER!");
   adb.close();
-  assert.ok(true, "Done!");
+  assert.pass("Done!");
   done();
 };
 
