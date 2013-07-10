@@ -2,13 +2,10 @@
 # modified again from Ubuntu's android-tools package
 
 ifeq ($(OS), Windows_NT)
-  VS_DEVELOPER_CMD_PATH = `which vcvars32.bat`
+  VS_DEVELOPER_CMD_PATH = vcvars32.bat
   ADB_TARGETS = winlib
 else
 ADB_TARGETS = adb nixlib
-
-CXX= clang
-CC= clang
 
 CSRCS+= sockets.c
 CPPSRCS+= adb.cpp
@@ -65,6 +62,7 @@ CPPFLAGS+= -DHAVE_FORKEXEC=1
 CPPFLAGS+= -DHAVE_SYMLINKS
 CPPFLAGS+= -DHAVE_TERMIO_H
 CPPFLAGS+= -fPIC
+CPPFLAGS+= -std=gnu99
 ifeq ($(shell getconf LONG_BIT), 64)
 	CPPFLAGS+= -m64
 else
