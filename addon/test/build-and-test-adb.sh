@@ -19,16 +19,7 @@ popd
 prefix "no-"
 mv no-$FILE $FILE
 
-case `uname` in
-  MINGW*)
-    LIB=libadb.dll
-    ;;
-  *)
-    LIB=libadb.so
-    make -C ../../android-tools
-    cp ../../android-tools/adb-bin/$LIB ../data/$LIB
-    ;;
-esac
+make -C ../.. adb
 
 cfx test --verbose
 

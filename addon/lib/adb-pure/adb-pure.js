@@ -29,9 +29,26 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 let serverWorker, ioWorker, utilWorker;
 
-let dll = (platform === "winnt") ? ".dll" : ".so";
-let libPath = URL.toFilename(self.data.url("libadb" + dll));
-let driversPath = (platform === "winnt") ? URL.toFilename(self.data.url("win32/AdbWinApi.dll")) : null;
+let extension = (platform === "winnt") ? ".dll" : ".so";
+
+let platformDir;
+if (platform === "winnt") {
+  platformDir = "win32";
+} else if (platform === "linux") {
+  let is64bit = (require("runtime").XPCOMABI.indexOf("x86_64") == 0);
+  if (is64bit) {
+    platformDir = "linux64";
+  } else {
+    platformDir = "linux";
+  }
+} else if (platform === "darwin") {
+  platformDir = "mac64";
+} else {
+  throw "Unsupported platform";
+}
+let libPath = URL.toFilename(self.data.url(platformDir + "/adb/libadb" + extension));
+let driversPath = (platform === "winnt") ?
+  URL.toFilename(self.data.url("win32/adb/AdbWinApi.dll")) : null;
 
 // the context is used as shared state between EventedChromeWorker runOnPeerThread calls and this module
 let context = { __workers: [], // this array is populated automatically by EventedChromeWorker

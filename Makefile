@@ -47,6 +47,12 @@ B2G_TYPE ?= specific
 
 B2G_URL_BASE = https://ftp.mozilla.org/pub/mozilla.org/labs/r2d2b2g/
 
+LIBADB_LOCATION = remote
+LIBADB_VERSION = 0.1
+
+# Uncomment me to use a local build of libadb.{so, dll}
+LIBADB_LOCATION = local
+
 # Currently, all B2G builds are custom so we can optimize for code size and fix
 # bugs in B2G or its nightly build environments (like 844047 and 815805).
 
@@ -55,29 +61,45 @@ ifeq (win32, $(B2G_PLATFORM))
   # The URL of the specific B2G build.
   B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.win32.zip
 
-  ADB_PACKAGE = adb-1.0.31-windows.zip
-  ADB_BINARIES = adb.exe AdbWinApi.dll AdbWinUsbApi.dll
-  BIN_SUFFIX = .exe
+  ADB_PACKAGE = libadb-$(LIBADB_VERSION)-windows.zip
+  DEPS = AdbWinApi.dll
+  ADB_BINARIES = libadb.dll $(DEPS)
+  LIB_SUFFIX = .dll
+
+  VS_DEVELOPER_CMD_PATH = /c/ProgramData/Microsoft/Windows/Start\ Menu/Programs/Microsoft\ Visual\ Studio\ 2012/Visual\ Studio\ Tools/Developer\ Command\ Prompt\ for\ VS2012.lnk
+  BUILD_LIBADB = pushd android-tools/adb-bin && \
+								 echo "make-win.bat > out" | cmd $(VS_DEVELOPER_CMD_PATH) && \
+								 popd
+  ADB_OUT_DIR = android-tools/win-out/
 else
 ifeq (mac64, $(B2G_PLATFORM))
   B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.mac64.dmg
 
-  ADB_PACKAGE = adb-1.0.31-mac.zip
-  ADB_BINARIES = adb
+  ADB_PACKAGE = libadb-$(LIBADB_VERSION)-mac.zip
+  ADB_BINARIES = libadb.so
+  LIB_SUFFIX = .so
 
   DOWNLOAD_CMD = /usr/bin/curl -O
+  BUILD_LIBADB = make -C android-tools
+  ADB_OUT_DIR = android-tools/adb-bin/
 else
 ifeq (linux64, $(B2G_PLATFORM))
   B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.linux-x86_64.tar.bz2
 
-  ADB_PACKAGE = adb-1.0.31-linux64.zip
-  ADB_BINARIES = adb
+  ADB_PACKAGE = libadb-$(LIBADB_VERSION)-linux64.zip
+  ADB_BINARIES = libadb.so
+  LIB_SUFFIX = .so
+  BUILD_LIBADB = make -C android-tools
+  ADB_OUT_DIR = android-tools/adb-bin/
 else
 ifeq (linux, $(B2G_PLATFORM))
   B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.linux-i686.tar.bz2
 
-  ADB_PACKAGE = adb-1.0.31-linux.zip
-  ADB_BINARIES = adb
+  ADB_PACKAGE = libadb-$(LIBADB_VERSION)-linux.zip
+  ADB_BINARIES = libadb.so
+  LIB_SUFFIX = .so
+  BUILD_LIBADB = make -C android-tools
+  ADB_OUT_DIR = android-tools/adb-bin/
 endif
 endif
 endif
@@ -169,14 +191,28 @@ b2g:
 # now we store them in B2G_PLATFORM/adb/, which happens to be the same
 # as the names of the executables on Mac and Linux; so we need to remove
 # the executables from B2G_PLATFORM/ before creating B2G_PLATFORM/adb/.
+#
+# * prepare the adb folders
+# * if the zip doesn't exist and either libadb is remote or we depend on
+# 	something from this zip (i.e. Windows)
+# 		Download the zip
+# * if there exists a zip, unzip it
+# * if we are installing locally, run the build command
 adb:
 	mkdir -p addon/data/$(B2G_PLATFORM)
 	cd addon/data/$(B2G_PLATFORM) && rm -rf adb $(ADB_BINARIES)
 	mkdir addon/data/$(B2G_PLATFORM)/adb
-	if [ ! -f $(ADB_PACKAGE) ]; then \
+	if [ ! -f $(ADB_PACKAGE) ] && \
+		 ( [ "$(LIBADB_LOCATION)" = "remote" ] || [ $(DEPS) ] ); then \
 	  $(DOWNLOAD_CMD) $(ADB_URL); \
 	fi;
-	unzip $(ADB_PACKAGE) -d addon/data/$(B2G_PLATFORM)/adb
+	if [ -f $(ADB_PACKAGE) ]; then \
+		unzip $(ADB_PACKAGE) -d addon/data/$(B2G_PLATFORM)/adb; \
+	fi;
+	if [ "$(LIBADB_LOCATION)" = "local" ]; then \
+		$(BUILD_LIBADB); \
+		cp $(ADB_OUT_DIR)libadb$(LIB_SUFFIX) addon/data/$(B2G_PLATFORM)/adb; \
+	fi;
 
 locales:
 	python build/make-locales.py
@@ -197,7 +233,7 @@ help:
 	@echo '  clean: remove files created during the build process'
 	@echo '  profile: make the Gaia profile and its prosthesis addon'
 	@echo '  b2g: download and install B2G'
-	@echo '  adb: download and install ADB'
+	@echo '  adb: download and install ADB libraries'
 	@echo '  locales: pull/update l10n repositories for specified locales'
 	@echo '  run: start Firefox with the addon installed into a new profile'
 	@echo '  package: package the addon into a XPI'
