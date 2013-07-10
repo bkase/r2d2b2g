@@ -25,7 +25,9 @@ function debug() {
 
 let I = null;
 let libadb = null;
+let libPath_;
 worker.once("init", function({ libPath }) {
+  libPath_ = libPath;
 
   I = new Instantiator();
 
@@ -108,6 +110,8 @@ worker.once("start", function({ port }) {
   contents.spawnD = ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr(spawnDfn);
 
 
+  let log_path = libPath_.replace(/\\[^\\]*$/ /* match everything after the last \ */, "\\adb.log");
+  contents.log_path = ctypes.char.array()(log_path);
 
   let pipe = ctypes.ArrayType(ctypes.int, 2)();
   I.use("socket_pipe")(pipe);

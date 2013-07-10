@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EventedChromeWorker = require("evented-chrome-worker").EventedChromeWorker;
+const EventedChromeWorker = require("adb-pure/evented-chrome-worker").EventedChromeWorker;
 
 const URL_PREFIX = module.uri.replace(/test\-evented\-chrome\-worker\.js/, "");
 const WORKER_URL = URL_PREFIX + "evented-chrome-worker-worker.js";

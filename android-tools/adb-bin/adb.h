@@ -283,6 +283,10 @@ struct adb_main_input {
 
   int (*spawnIO)(atransport*);
   int (*spawnD)();
+
+  // this is a string pointing to a valid path for the adb.log
+  // because windows won't printf to stdout
+  char * log_path;
 };
 
 // a function carrier for a CFRunLoopTimerCallback

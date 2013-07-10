@@ -1330,9 +1330,6 @@ static int should_drop_privileges() {
 #endif /* !ADB_HOST */
 
 void * server_thread(void * args) {
-#ifdef WIN32
-  LOG_FILE = fopen("C:\\Users\\bkase\\Documents\\work\\adb.log", "w");
-#endif
   adb_sysdeps_init();
 
   struct adb_main_input* input = (struct adb_main_input*)args;
@@ -1347,6 +1344,12 @@ void * server_thread(void * args) {
   int (*spawnIO)(atransport*) = input->spawnIO;
   int (*spawnD)() = input->spawnD;
 
+  char * log_path = input->log_path;
+
+#ifdef WIN32
+  LOG_FILE = fopen(log_path, "w");
+#endif
+ 
   if (is_lib_call) {
       printf("THIS needs to run!\n");
       transport_type ttype = kTransportAny;

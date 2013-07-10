@@ -69,6 +69,7 @@ ifeq (win32, $(B2G_PLATFORM))
   VS_DEVELOPER_CMD_PATH = /c/ProgramData/Microsoft/Windows/Start\ Menu/Programs/Microsoft\ Visual\ Studio\ 2012/Visual\ Studio\ Tools/Developer\ Command\ Prompt\ for\ VS2012.lnk
   BUILD_LIBADB = pushd android-tools/adb-bin && \
 								 echo "make-win.bat > out" | cmd $(VS_DEVELOPER_CMD_PATH) && \
+								 rm -rf out; \
 								 popd
   ADB_OUT_DIR = android-tools/win-out/
 else
