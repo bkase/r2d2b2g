@@ -35,7 +35,8 @@ ifeq ($(shell uname -s), Linux)
   CSRCS+= get_my_path_linux.c
   CSRCS+= fdevent.c
   CSRCS+= adb_auth_host.c
-  LIBS+= -lc -lpthread -lz -lcrypto
+  LIBS+= -Wl,-Bstatic -lcrypto -Wl,-Bdynamic -lc -lpthread -lz -ldl
+  LDFLAGS+= -Wl,-Bsymbolic
 endif
 
 VPATH+= ../libcutils
@@ -57,6 +58,7 @@ CPPFLAGS+= -x c
 CPPFLAGS+= -DADB_HOST=1
 CPPFLAGS+= -I.
 CPPFLAGS+= -I../include
+CPPFLAGS+= -I/usr/include/openssl
 CPPFLAGS+= -g3
 CPPFLAGS+= -DHAVE_FORKEXEC=1
 CPPFLAGS+= -DHAVE_SYMLINKS
@@ -64,9 +66,9 @@ CPPFLAGS+= -DHAVE_TERMIO_H
 CPPFLAGS+= -fPIC
 CPPFLAGS+= -std=gnu99
 ifeq ($(shell getconf LONG_BIT), 64)
-	CPPFLAGS+= -m64
+  CPPFLAGS+= -m64
 else
-	CPPFLAGS+= -m32
+  CPPFLAGS+= -m32
 endif
 # CPPFLAGS+= -Wno-deprecated-writable-strings
 CPPFLAGS+= -Wno-deprecated-declarations
