@@ -47,11 +47,12 @@ B2G_TYPE ?= specific
 
 B2G_URL_BASE = https://ftp.mozilla.org/pub/mozilla.org/labs/r2d2b2g/
 
-LIBADB_LOCATION = remote
 LIBADB_VERSION = 0.1
 
-# Uncomment me to use a local build of libadb.{so, dll}
-LIBADB_LOCATION = local
+# The location of libadb for making ADB. Set this variable to "local" to build 
+# libadb.{so, dll} from source locally. Set to "remote" to grab prebuilt ADB 
+# binaries from the FTP server.
+LIBADB_LOCATION ?= remote
 
 # Currently, all B2G builds are custom so we can optimize for code size and fix
 # bugs in B2G or its nightly build environments (like 844047 and 815805).
