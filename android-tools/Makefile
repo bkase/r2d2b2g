@@ -1,3 +1,9 @@
+ifeq ($(OS), Windows_NT)
+  LIB_TARGET = winlib
+else
+  LIB_TARGET = nixlib
+endif
+
 all:
 	make -C adb-bin
 adb:
@@ -5,4 +11,4 @@ adb:
 clean:
 	make -C adb-bin clean
 lib:
-	make -C adb-bin lib
+	make -C adb-bin $(LIB_TARGET)

@@ -2,9 +2,10 @@
 # modified again from Ubuntu's android-tools package
 
 ifeq ($(OS), Windows_NT)
-	echo "Make windows from make-win.bat"
-	exit 1
-endif
+  VS_DEVELOPER_CMD_PATH = `which vcvars32.bat`
+  ADB_TARGETS = winlib
+else
+ADB_TARGETS = adb nixlib
 
 CXX= clang
 CC= clang
@@ -72,17 +73,23 @@ endif
 # CPPFLAGS+= -Wno-deprecated-writable-strings
 CPPFLAGS+= -Wno-deprecated-declarations
 DLL=.so
+endif
 
 OBJS= $(CSRCS:.c=.o) $(CPPSRCS:.cpp=.o)
 SRCS= $(CSRCS) $(CPPSRCS)
 
-all: adb lib
+all: $(ADB_TARGETS)
 
 adb: $(OBJS)
 	$(CC) -o adb$(EXE) $(LDFLAGS) $(OBJS) $(LIBS)
 
 clean:
-	rm -rf $(OBJS) adb$(EXE)
+	rm -rf $(OBJS) adb$(EXE) libadb$(DLL)
 
-lib: $(OBJS)
+nixlib: $(OBJS)
 	$(CC) -shared -o libadb$(DLL) $(LDFLAGS) $(OBJS) $(LIBS)
+
+winlib:
+	echo "make-win.bat > out" | cmd $(VS_DEVELOPER_CMD_PATH) && \
+	rm -rf out
+

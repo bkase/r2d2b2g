@@ -67,11 +67,6 @@ ifeq (win32, $(B2G_PLATFORM))
   ADB_BINARIES = libadb.dll $(DEPS)
   LIB_SUFFIX = .dll
 
-  VS_DEVELOPER_CMD_PATH = /c/ProgramData/Microsoft/Windows/Start\ Menu/Programs/Microsoft\ Visual\ Studio\ 2012/Visual\ Studio\ Tools/Developer\ Command\ Prompt\ for\ VS2012.lnk
-  BUILD_LIBADB = pushd android-tools/adb-bin && \
-								 echo "make-win.bat > out" | cmd $(VS_DEVELOPER_CMD_PATH) && \
-								 rm -rf out; \
-								 popd
   ADB_OUT_DIR = android-tools/win-out/
 else
 ifeq (mac64, $(B2G_PLATFORM))
@@ -82,7 +77,6 @@ ifeq (mac64, $(B2G_PLATFORM))
   LIB_SUFFIX = .so
 
   DOWNLOAD_CMD = /usr/bin/curl -O
-  BUILD_LIBADB = make -C android-tools
   ADB_OUT_DIR = android-tools/adb-bin/
 else
 ifeq (linux64, $(B2G_PLATFORM))
@@ -91,7 +85,6 @@ ifeq (linux64, $(B2G_PLATFORM))
   ADB_PACKAGE = libadb-$(LIBADB_VERSION)-linux64.zip
   ADB_BINARIES = libadb.so
   LIB_SUFFIX = .so
-  BUILD_LIBADB = make -C android-tools
   ADB_OUT_DIR = android-tools/adb-bin/
 else
 ifeq (linux, $(B2G_PLATFORM))
@@ -100,7 +93,6 @@ ifeq (linux, $(B2G_PLATFORM))
   ADB_PACKAGE = libadb-$(LIBADB_VERSION)-linux.zip
   ADB_BINARIES = libadb.so
   LIB_SUFFIX = .so
-  BUILD_LIBADB = make -C android-tools
   ADB_OUT_DIR = android-tools/adb-bin/
 endif
 endif
@@ -212,7 +204,7 @@ adb:
 		unzip $(ADB_PACKAGE) -d addon/data/$(B2G_PLATFORM)/adb; \
 	fi;
 	if [ "$(LIBADB_LOCATION)" = "local" ]; then \
-		$(BUILD_LIBADB); \
+		make -C android-tools lib; \
 		cp $(ADB_OUT_DIR)libadb$(LIB_SUFFIX) addon/data/$(B2G_PLATFORM)/adb; \
 	fi;
 
