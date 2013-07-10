@@ -156,11 +156,11 @@
     struct_adb_main_input: struct_adb_main_input,
 
     packPtr: function packPointer(ptr) {
-      return ctypes.cast(ptr, ctypes.uint64_t).value.toString();
+      return ctypes.cast(ptr, ctypes.uintptr_t).value.toString();
     },
 
     unpackPtr: function unpackPointer(str, type) {
-      return ctypes.cast(ctypes.uint64_t(str), type);
+      return ctypes.cast(ctypes.uintptr_t(str), type);
     }
   };
 
