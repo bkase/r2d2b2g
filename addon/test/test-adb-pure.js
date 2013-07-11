@@ -41,27 +41,60 @@ Services.obs.addObserver(observer, "adb-device-disconnected", true);
 // Before all
 adb._startAdbInBackground();
 
-console.log();
-console.log("***************************************");
-console.log("***************************************");
-console.log("*   START TEST WITH PHONE UNPLUGGED   *");
-console.log("***************************************");
-console.log("***************************************");
-console.log();
+function dumpBanner(msg) {
+  let starCount = msg.length + 8;
+  let starLine = '';
+  for (let i = 0; i < starCount; i++) {
+    starLine += '*';
+  }
+  let msgLine = '*   ' + msg + '   *';
+
+  console.log();
+  console.log(starLine);
+  console.log(starLine);
+  console.log(msgLine);
+  console.log(starLine);
+  console.log(starLine);
+  console.log();
+}
+
+function waitUntil(trigger, andThen) {
+  timer.setTimeout(function() {
+    if (!trigger()) {
+      waitUntil(trigger, andThen);
+    } else {
+      andThen();
+    }
+  }, 50);
+}
 
 exports["test a list devices"] = function(assert, done) {
+  function next(e) {
+    if (isPhonePluggedIn) {
+      assert.pass("Devices: " + JSON.stringify(e));
+      dumpBanner("DEVICE IS PLUGGED IN");
+      done();
+    } else {
+      assert.pass("Devices: " + JSON.stringify(e));
+      dumpBanner("DEVICE IS NOT PLUGGED IN");
+      done();
+    }
+  }
+
   // Give adb 2 seconds to startup
   timer.setTimeout(function() {
     adb.listDevices().then(
       function success(e) {
-        isPhonePluggedIn = (e.length > 0);
-        if (isPhonePluggedIn) {
-          assert.fail("Unplug your phone before starting the test bench");
-          done();
-          return;
+        if (e[0]) {
+          let [, status] = e[0];
+          if (status === "offline") {
+            dumpBanner("DEVICE OFFLINE, RECONNECT TO CONTINUE");
+            waitUntil(function() isPhonePluggedIn, function andThen() {
+              next(e);
+            });
+          }
         }
-        assert.pass("Devices: " + JSON.stringify(e));
-        done();
+        next(e);
       },
       function fail(e) {
         assert.fail("Failed to list devices: " + JSON.stringify(e));
@@ -71,6 +104,12 @@ exports["test a list devices"] = function(assert, done) {
 };
 
 exports["test b adb.shell, no phone"] = function (assert, done) {
+  if (isPhonePluggedIn) {
+    assert.pass("Skipping test");
+    done();
+    return;
+  }
+
   let command = "ls";
   adb.shell(command).then(
       function success(output) {
@@ -84,6 +123,12 @@ exports["test b adb.shell, no phone"] = function (assert, done) {
 };
 
 exports["test c adb push, no phone"] = function (assert, done) {
+  if (isPhonePluggedIn) {
+    assert.pass("Skipping test");
+    done();
+    return;
+  }
+
   let str = "astring" + Math.random();
   let filename = "no-test.txt";
   let pathToFile = URL.toFilename(TEST_URI + "/" + filename);
@@ -103,40 +148,13 @@ exports["test c adb push, no phone"] = function (assert, done) {
     });
 };
 
-exports["test d plug phone back in"] = function(assert, done) {
-  console.log();
-  console.log("***************************************");
-  console.log("***************************************");
-  console.log("**********   PLUG IN PHONE   **********");
-  console.log("***************************************");
-  console.log("***************************************");
-  console.log();
+exports["test d adb shell, with phone"] = function (assert, done) {
+  if (!isPhonePluggedIn) {
+    assert.pass("Skipping test");
+    done();
+    return;
+  }
 
-  /*let i = 0;
-  (function loop() {
-    timer.setTimeout(function() {
-      console.log(i++);
-      if (i >= 5) {
-        assert.ok(true, "hack plugged");
-        done();
-      } else {
-        loop();
-      }
-    }, 1000);
-  })();*/
- (function loop() {
-    timer.setTimeout(function() {
-      if (!isPhonePluggedIn) {
-        loop();
-      } else {
-        assert.pass("Plugged in phone");
-        done();
-      }
-    }, 50);
-  })();
-};
-
-exports["test e adb shell, with phone"] = function (assert, done) {
   let command = "ls";
   console.log("Running adb shell");
   adb.shell(command).then(
@@ -150,7 +168,13 @@ exports["test e adb shell, with phone"] = function (assert, done) {
     });
 };
 
-exports["test f adb push, with phone"] = function (assert, done) {
+exports["test e adb push, with phone"] = function (assert, done) {
+  if (!isPhonePluggedIn) {
+    assert.pass("Skipping test");
+    done();
+    return;
+  }
+
   let str = "astring" + Math.random();
   let filename = "no-test.txt";
   let pathToFile = URL.toFilename(TEST_URI + "/" + filename);
@@ -178,8 +202,26 @@ exports["test f adb push, with phone"] = function (assert, done) {
     });
 };
 
+exports["test f device tracking, with phone"] = function(assert, done) {
+  if (!isPhonePluggedIn) {
+    assert.pass("Skipping test");
+    done();
+    return;
+  }
+
+  dumpBanner("UNPLUG YOUR DEVICE");
+
+  waitUntil(function() !isPhonePluggedIn, function andThen() {
+    assert.pass("Tracker caught disconnection successfully");
+    dumpBanner("PLUG IN YOUR DEVICE");
+    waitUntil(function() isPhonePluggedIn, function andThen() {
+      assert.pass("Tracker caught connection successfully");
+      done();
+    });
+  });
+};
+
 exports["test zz after"] = function(assert, done) {
-  console.log("AFTER!");
   adb.close();
   assert.pass("Done!");
   done();
