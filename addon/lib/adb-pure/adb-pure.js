@@ -115,8 +115,8 @@ exports = module.exports = {
         }
         debug("Didn't find ADB process running, restarting");
 
-        this.didRunInitially = true;
-        this._startAdbInBackground();
+        let startedSuccessfully = this._startAdbInBackground();
+        this.didRunInitially = startedSuccessfully;
       }).bind(this));
   },
 
@@ -274,7 +274,13 @@ restart_helper();
 exports._startAdbInBackground = function startAdbInBackground() {
   this.ready = true;
 
-  blockingNative.init(libPath, driversPath);
+  // catch the exception that is thrown when the shared library cannot be loaded
+  try {
+    blockingNative.init(libPath, driversPath);
+  } catch (e) {
+    console.log(e);
+    return false;
+  }
   serverWorker = new EventedChromeWorker(WORKER_URL_SERVER, "server_thread", context);
   ioWorker = new EventedChromeWorker(WORKER_URL_IO, "io_thread", context);
   utilWorker = new EventedChromeWorker(WORKER_URL_UTIL, "util_thread", context);
@@ -299,5 +305,7 @@ exports._startAdbInBackground = function startAdbInBackground() {
       debug("Inited worker");
     });
   });
+
+  return true;
 };
 
