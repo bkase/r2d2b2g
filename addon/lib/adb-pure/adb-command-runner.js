@@ -75,5 +75,9 @@ exports.devices = function devices() {
       return res;
     }
   );
-}
+};
+
+exports.reset = function() {
+
+};
 

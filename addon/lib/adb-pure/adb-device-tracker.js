@@ -30,6 +30,13 @@ module.exports = {
     return hasDevice;
   },
 
+  reset: function reset() {
+    waitForFirst = false;
+    devices = { };
+    socket.close();
+    hasDevice = false;
+  },
+
   start: function track_start() {
     socket = client.connect();
     Services.obs.notifyObservers(null, "adb-track-devices-start", null);

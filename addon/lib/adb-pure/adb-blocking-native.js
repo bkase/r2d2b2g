@@ -21,6 +21,10 @@ const I = new Instantiator();
 let libadb, libadbdrivers;
 let io;
 module.exports = {
+  reset: function reset() {
+
+  },
+
   init: function init(libPath, driversPath) {
     libadb = ctypes.open(libPath);
 

@@ -95,7 +95,9 @@ static __inline__ int adb_thread_cancel( adb_thread_t thread ) {
 
 static __inline__ void  close_on_exec(int  fd)
 {
+    _fds[_fds_count++] = fd;
     /* nothing really */
+
 }
 
 extern void  disable_tcp_nagle(int  fd);
@@ -334,9 +336,12 @@ typedef  pthread_mutex_t          adb_mutex_t;
 #define  ADB_MUTEX(x)   extern adb_mutex_t  x;
 #include "mutex_list.h"
 
+int _fds[10240];
+int _fds_count = 0;
 static __inline__ void  close_on_exec(int  fd)
 {
-    fcntl( fd, F_SETFD, FD_CLOEXEC );
+    _fds[_fds_count++] = fd;
+    // fcntl( fd, F_SETFD, FD_CLOEXEC );
 }
 
 static __inline__ int  unix_open(const char*  path, int options,...)
@@ -457,7 +462,7 @@ static __inline__ int  adb_thread_create_raw( adb_thread_t  *pthread, adb_thread
     /*pthread_attr_t   attr;
 
     pthread_attr_init (&attr);
-    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);*/	
+    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);*/
 
     return pthread_create( pthread, NULL/*&attr*/, start, arg );
 }

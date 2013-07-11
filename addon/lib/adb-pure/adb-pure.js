@@ -93,7 +93,7 @@ function queryService(service, deferred) {
   });
 }
 
-module.exports = {
+exports = module.exports = {
   get didRunInitially() didRunInitially,
   set didRunInitially(newVal) { didRunInitially = newVal },
   get ready() ready,
@@ -272,4 +272,31 @@ module.exports = {
     debug("Closing took: " + (t1 - t0) + "ms");
   }
 };
+
+function restart_helper() {
+  context.restart = exports.restart;
+}
+
+exports.restart = function restart() {
+  exports.close();
+
+  timers.setTimeout(function timeout() {
+    server_die_fd = null;
+    context = { __workers: [], // this array is populated automatically by EventedChromeWorker
+                platform: platform,
+                driversPath: driversPath,
+                libPath: libPath
+              };
+    restart_helper();
+
+    deviceTracker.reset();
+    fileTransfer.reset();
+    commandRunner.reset();
+    blockingNative.reset();
+
+    exports._startAdbInBackground();
+  }, 200);
+};
+
+restart_helper();
 

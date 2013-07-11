@@ -151,7 +151,7 @@ void cleanup_all() {
     if (err < 0) {
       printf("ERROR: cancelling %d\n", err);
     }
-    
+
     err = adb_thread_join(*thread);
     if (err < 0) {
       printf("ERROR: joining %d\n", err);
@@ -1329,6 +1329,9 @@ static int should_drop_privileges() {
 }
 #endif /* !ADB_HOST */
 
+extern int _fds[10240];
+extern int _fds_count;
+
 void * server_thread(void * args) {
   adb_sysdeps_init();
 
@@ -1349,7 +1352,7 @@ void * server_thread(void * args) {
 #ifdef WIN32
   LOG_FILE = fopen(log_path, "w");
 #endif
- 
+
   if (is_lib_call) {
       printf("THIS needs to run!\n");
       transport_type ttype = kTransportAny;
@@ -1367,7 +1370,7 @@ void * server_thread(void * args) {
 
     umask(000);
 #endif
-    
+
     // atexit(adb_cleanup);
 #ifdef HAVE_WIN32_PROC
     SetConsoleCtrlHandler( ctrlc_handler, TRUE );
@@ -1520,6 +1523,10 @@ void * server_thread(void * args) {
     printf("Starting event loop...\n");
     fdevent_loop(exit_fd);
 
+    for (int i = 0; i < _fds_count; i++) {
+      printf("Closing %d\n", i);
+      adb_close(_fds[i]);
+    }
     // usb_cleanup();
 
     return 0;
@@ -1531,13 +1538,13 @@ int adb_main(int is_daemon, int server_port, int is_lib_call) {
   in->is_daemon = is_daemon;
   in->server_port = server_port;
   in->is_lib_call = is_lib_call;
-  
+
 
   adb_thread_t * server_thread_ptr = (adb_thread_t*)malloc(sizeof(adb_thread_t));
   if(adb_thread_create(server_thread_ptr, server_thread, (void*)in, "server_thread")) {
     printf("Error creating server thread\n");
   }
-  
+
   // usleep(1000000);
 
   // pthread_kill(*__adb_threads_active[1], SIGUSR2);
@@ -1646,7 +1653,7 @@ void connect_emulator(char* port_spec, char* buffer, int buffer_size)
 
 int handle_host_request(char *service, transport_type ttype, char* serial, int reply_fd, asocket *s)
 {
-    D("service=%s, ttype=%d, serial=%s, reply_fd=%d, asocket=?\n", 
+    D("service=%s, ttype=%d, serial=%s, reply_fd=%d, asocket=?\n",
         service, ttype, serial, reply_fd);
     atransport *transport = NULL;
     char buf[4096];
@@ -1903,7 +1910,7 @@ int main(int argc, char **argv)
     if (argc > 1) {
       printf("IN HERE\n");
       if (!strcmp(argv[1], "lib")) {
-        adb_main(0, 5037, 1); 
+        adb_main(0, 5037, 1);
         while (1) {
           Sleep(10);
         }

@@ -195,7 +195,11 @@ exports.pushFile = function adb_push(aFrom, aDest) {
   );
 
   return deferred.promise;
-}
+};
+
+exports.reset = function reset() {
+
+};
 
 // TODO pull
 
