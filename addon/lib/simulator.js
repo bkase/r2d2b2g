@@ -49,9 +49,7 @@ const MANIFEST_CONTENT_TYPE = "application/x-web-app-manifest+json";
 
 let worker, remoteSimulator;
 let deviceConnected, adbReady, debuggerReady;
-let gCurrentToolbox, gCurrentToolboxManifestURL;
-// Lock to prevent duplicate toolbox creation
-let gConnectingToApp = false;
+let gCurrentConnection, gCurrentToolbox, gCurrentToolboxManifestURL;
 let gRunningApps = [];
 
 let hasStartedShutdown = false;
@@ -156,7 +154,7 @@ let simulator = module.exports = {
         // Update the Dashboard to reflect changes to the record and run the app
         // if the update succeeded.  Otherwise, it isn't necessary to notify
         // the user about the error, as it'll show up in the validation results.
-        simulator.sendListApps();
+        simulator.sendSingleApp(manifestFile);
         if (!error) {
           simulator.runApp(app);
         }
@@ -243,11 +241,11 @@ let simulator = module.exports = {
       // validation, but validation can stall and never call our callback;
       // and we want to make sure the app listing is updated with the info
       // we just got from the manifest; so we do it here as well.
-      simulator.sendListApps();
+      simulator.sendSingleApp(id);
 
       simulator.validateApp(id, function(error, app) {
         // update dashboard app validation info
-        simulator.sendListApps();
+        simulator.sendSingleApp(id);
 
         if (!error) {
           // NOTE: try to updateApp if there isn't any blocking error
@@ -271,7 +269,7 @@ let simulator = module.exports = {
 
     if (!config) {
       if (this.worker) {
-        this.sendListApps();
+        this.sendSingleApp(id);
       }
       if (next) {
         next();
@@ -424,32 +422,56 @@ let simulator = module.exports = {
     }
 
     if (this.worker) {
-      this.sendListApps();
+      this.sendSingleApp(id);
     }
-  },
-
-  receiptManifestURL: function receiptManifestURL(appType, appOrigin) {
-    return appType === "local" ? "https://" + appOrigin + ".simulator" : appOrigin;
   },
 
   updateReceiptType: function updateReceiptType(appId, receiptType) {
     let app = this.apps[appId];
-    let manifestURL = this.receiptManifestURL(app.type,
-                                              app.origin || app.xkey);
+    let manifestURL =
+      app.type === "local" ? "https://" + app.xkey + ".simulator" : app.origin;
     if (receiptType === "none") {
       app.receipt = null;
       app.receiptType = receiptType;
-      this._updateApp(appId, this.sendListApps.bind(this));
+      this._updateApp(appId, function() {
+        this.sendSingleApp(appId);
+      });
     } else {
+      app.updateReceipt = true;
+      this.postUpdateReceiptStart(appId);
       this.fetchReceipt(manifestURL, receiptType, function fetched(err, receipt) {
+        delete app.updateReceipt;
+        this.postUpdateReceiptStop(appId);
         if (err || !receipt) {
-          console.error(err || "No receipt");
+          this.error("Error getting receipt: " + (err || "unknown error"));
+          this.sendSingleApp(appId);
         } else {
           app.receipt = receipt;
           app.receiptType = receiptType;
-          this._updateApp(appId, this.sendListApps.bind(this));
+          this._updateApp(appId, function() {
+            this.sendSingleApp(appId);
+          });
         }
       }.bind(this));
+    }
+  },
+
+  sendSingleApp: function(id) {
+    let app = this.apps[id];
+    if (this.worker) {
+      this.worker.postMessage({ name: "updateSingleApp", id: id, app: app });
+    }
+  },
+
+  postUpdateReceiptStart: function(id) {
+    if (this.worker) {
+      this.worker.postMessage({ name: "updateReceiptStart", id: id });
+    }
+  },
+
+  postUpdateReceiptStop: function(id) {
+    if (this.worker) {
+      this.worker.postMessage({ name: "updateReceiptStop", id: id });
     }
   },
 
@@ -463,26 +485,21 @@ let simulator = module.exports = {
         receipt_type: receiptType,
       },
       onComplete: function(response) {
-        const INVALID_MESSAGE = "INVALID_RECEIPT";
         if (response.status === 400 && "error_message" in response.json) {
-          console.log("Bad request made to test receipt server: " +
-            JSON.stringify(response.json.error_message));
-          return cb(INVALID_MESSAGE, null);
+          return cb("bad request made to test receipt server: " +
+                    JSON.stringify(response.json.error_message), null);
         }
         if (response.status !== 201) {
-          console.log("Unexpected status code " + response.status);
-          return cb(INVALID_MESSAGE, null);
+          return cb("unexpected status code " + response.status, null);
         }
         if (!response.json) {
-          console.log("Expected JSON response.");
-          return cb(INVALID_MESSAGE, null);
+          return cb("expected JSON response", null);
         }
         if (!('receipt' in response.json)) {
-          console.log("Expected receipt field in test receipt response");
-          return cb(INVALID_MESSAGE, null);
+          return cb("expected receipt field in test receipt response", null);
         }
         console.log("Received receipt: " + response.json.receipt);
-        cb(null, response.json.receipt);
+        return cb(null, response.json.receipt);
       },
     }).post();
   },
@@ -504,13 +521,13 @@ let simulator = module.exports = {
       if (error) {
         simulator.error(error);
         config.removed = false;
-        simulator.sendListApps();
+        simulator.sendSingleApp(id);
         return;
       }
       simulator.remoteSimulator.uninstall(config.xkey, function() {
         // app uninstall completed
         // TODO: add success/error detection and report to the user
-        simulator.sendListApps();
+        simulator.sendSingleApp(id);
       });
     });
   },
@@ -529,7 +546,7 @@ let simulator = module.exports = {
     simulator.updateApp(id, function next(error, app) {
       // app reinstall completed
       // success/error detection and report to the user
-      simulator.sendListApps();
+      simulator.sendSingleApp(id);
       if (error) {
         simulator.error(error);
       } else {
@@ -738,7 +755,7 @@ let simulator = module.exports = {
       // Update the Dashboard to reflect changes to the record and run the app
       // if the update succeeded.  Otherwise, it isn't necessary to notify
       // the user about the error, as it'll show up in the validation results.
-      simulator.sendListApps();
+      simulator.sendSingleApp(id);
       if (!error) {
         simulator.runApp(app);
       }
@@ -925,19 +942,40 @@ let simulator = module.exports = {
   },
 
   connectToApp: function(id) {
-    // connectToApp implementation is asynchronous and take a visible amount of
-    // time to end up displaying the toolbox.
-    // We need to lock down toolbox create to prevent trying to display more
-    // than one at a time.
-    if (gConnectingToApp)
-      return;
-    gConnectingToApp = true;
+    // connectToApp implementation is asynchronous and takes a visible amount
+    // of time to end up displaying the toolbox, so users can initiate
+    // a new connection while an existing connection is underway; thus we track
+    // each connection and cancel it if a newer connection has been initiated.
+    let connection = gCurrentConnection = { appID: id };
 
     let app = this.apps[id];
-    simulator.runApp(app, simulator.openToolboxForApp.bind(simulator, app));
+    this.runApp(app, (function(error) {
+      if (error) {
+        if (error == "app-not-installed") {
+          this.updateApp(id, (function(error) {
+            if (error) {
+              this.error("Error connecting to app: " + error);
+            } else {
+              this.runApp(app, this.openToolboxForApp.bind(this, app,
+                                                           connection));
+            }
+          }).bind(this));
+        } else {
+          this.error("Error connecting to app: " + error);
+        }
+      } else {
+        this.openToolboxForApp(app, connection);
+      }
+    }).bind(this));
   },
 
-  openToolboxForApp: function(app) {
+  openToolboxForApp: function(app, connection) {
+    if (connection != gCurrentConnection) {
+      console.log("cancel connection to " + connection.appID +
+                  " because superceded by " + gCurrentConnection.appID);
+      return;
+    }
+
     if (gCurrentToolbox) {
       gCurrentToolbox.destroy();
       gCurrentToolbox = null;
@@ -946,8 +984,14 @@ let simulator = module.exports = {
 
     // Function called whenever the toolbox is finally created
     function toolboxDisplayed(toolbox) {
+      if (connection != gCurrentConnection) {
+        console.log("destroy toolbox for " + connection.appID +
+                    " because superceded by " + gCurrentConnection.appID);
+        toolbox.destroy();
+        return;
+      }
+
       gCurrentToolbox = toolbox;
-      gConnectingToApp = false;
 
       // Display a message in the console to make it clear that the toolbox
       // got connected to a new App
@@ -1182,25 +1226,33 @@ let simulator = module.exports = {
         } else {
           simulator.error(error);
         }
+        return;
       }
-      else {
-        let cb = typeof next === "function" ? (function(res) next(null,res)) : null;
-        simulator.remoteSimulator.runApp(app.xkey);
+
+      simulator.remoteSimulator.runApp(app.xkey, function(response) {
+        if (!response.success) {
+          if (typeof next === "function") {
+            next(response.error);
+          } else {
+            simulator.error("Error running app: " + response.error);
+          }
+          return;
+        }
 
         // Listen for app to be finally opened before firing the callback
-        if (cb) {
+        if (typeof next === "function") {
           if (gRunningApps.indexOf(app) != -1) {
-            cb();
+            next();
           } else {
             simulator.remoteSimulator.on("appOpen", function listener({manifestURL}) {
               if (manifestURL == app.manifestURL) {
                 simulator.remoteSimulator.removeListener("appOpen", listener);
-                cb();
+                next();
               }
             });
           }
         }
-      }
+      });
     });
   },
 
@@ -1370,10 +1422,13 @@ let simulator = module.exports = {
         this.undoRemoveApp(message.id);
         break;
       case "toggle":
-        if (this.isRunning) {
-          this.kill();
+        let start = message.start;
+        if (this.isRunning === start) {
+          this.postIsRunning();
+        } else if (start) {
+          this.run();
         } else {
-          simulator.run();
+          this.kill();
         }
         break;
       case "listTabs":

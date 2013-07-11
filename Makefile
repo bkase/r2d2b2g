@@ -60,7 +60,7 @@ LIBADB_LOCATION ?= remote
 # Platform-specific Defines
 ifeq (win32, $(B2G_PLATFORM))
   # The URL of the specific B2G build.
-  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.win32.zip
+  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-26.en-US.win32.zip
 
   ADB_PACKAGE = libadb-$(LIBADB_VERSION)-windows.zip
   DEPS = AdbWinApi.dll
@@ -70,7 +70,7 @@ ifeq (win32, $(B2G_PLATFORM))
   ADB_OUT_DIR = android-tools/win-out/
 else
 ifeq (mac64, $(B2G_PLATFORM))
-  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.mac64.dmg
+  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-26.en-US.mac64.dmg
 
   ADB_PACKAGE = libadb-$(LIBADB_VERSION)-mac.zip
   ADB_BINARIES = libadb.so
@@ -80,7 +80,7 @@ ifeq (mac64, $(B2G_PLATFORM))
   ADB_OUT_DIR = android-tools/adb-bin/
 else
 ifeq (linux64, $(B2G_PLATFORM))
-  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.linux-x86_64.tar.bz2
+  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-26.en-US.linux-x86_64.tar.bz2
 
   ADB_PACKAGE = libadb-$(LIBADB_VERSION)-linux64.zip
   ADB_BINARIES = libadb.so
@@ -88,7 +88,7 @@ ifeq (linux64, $(B2G_PLATFORM))
   ADB_OUT_DIR = android-tools/adb-bin/
 else
 ifeq (linux, $(B2G_PLATFORM))
-  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-19.en-US.linux-i686.tar.bz2
+  B2G_URL ?= $(B2G_URL_BASE)b2g-18.0.2013-06-26.en-US.linux-i686.tar.bz2
 
   ADB_PACKAGE = libadb-$(LIBADB_VERSION)-linux.zip
   ADB_BINARIES = libadb.so

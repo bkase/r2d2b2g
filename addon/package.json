@@ -1,7 +1,7 @@
 {
   "id": "r2d2b2g@mozilla.org",
   "name": "r2d2b2g",
-  "version": "4.0pre8dev",
+  "version": "5.0pre1dev",
   "fullName": "Firefox OS Simulator",
   "description": "a Firefox OS simulator",
   "author": "Myk Melez (https://github.com/mykmelez)",
@@ -21,6 +21,7 @@
     "Matthew Riley MacPherson (https://github.com/tofumatt)",
     "Nick Desaulniers (https://github.com/nickdesaulniers)",
     "Soumen Ganguly (https://github.com/SoumenG)",
+    "Sudheesh Singanamalla (https://github.com/sudheesh001)",
     "Victor Bjelkholm (https://github.com/VictorBjelkholm)"
   ],
   "permissions": {
