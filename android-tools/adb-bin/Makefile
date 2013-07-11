@@ -90,6 +90,5 @@ nixlib: $(OBJS)
 	$(CC) -shared -o libadb$(DLL) $(LDFLAGS) $(OBJS) $(LIBS)
 
 winlib:
-	echo "make-win.bat > out" | cmd $(VS_DEVELOPER_CMD_PATH) && \
-	rm -rf out
+	echo make-win.bat | cmd $(VS_DEVELOPER_CMD_PATH)
 

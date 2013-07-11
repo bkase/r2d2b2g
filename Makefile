@@ -202,11 +202,11 @@ adb:
 	  $(DOWNLOAD_CMD) $(ADB_URL); \
 	fi;
 	if [ -f $(ADB_PACKAGE) ]; then \
-		unzip $(ADB_PACKAGE) -d addon/data/$(B2G_PLATFORM)/adb; \
+	  unzip $(ADB_PACKAGE) -d addon/data/$(B2G_PLATFORM)/adb; \
 	fi;
 	if [ "$(LIBADB_LOCATION)" = "local" ]; then \
-		make -C android-tools lib; \
-		cp $(ADB_OUT_DIR)libadb$(LIB_SUFFIX) addon/data/$(B2G_PLATFORM)/adb; \
+	  make -C android-tools lib; \
+	  cp $(ADB_OUT_DIR)libadb$(LIB_SUFFIX) addon/data/$(B2G_PLATFORM)/adb; \
 	fi;
 
 locales:
