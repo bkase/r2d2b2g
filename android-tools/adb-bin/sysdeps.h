@@ -52,6 +52,8 @@ typedef CRITICAL_SECTION          adb_mutex_t;
 #define  ADB_MUTEX(x)   extern adb_mutex_t  x;
 #include "mutex_list.h"
 
+void _cleanup_winsock();
+
 extern void  adb_sysdeps_init(void);
 
 static __inline__ void adb_mutex_lock( adb_mutex_t*  lock )
@@ -93,6 +95,8 @@ static __inline__ int adb_thread_cancel( adb_thread_t thread ) {
 	return 0;
 }
 
+extern int _fds[10240];
+extern int _fds_count;
 static __inline__ void  close_on_exec(int  fd)
 {
     _fds[_fds_count++] = fd;
@@ -336,8 +340,8 @@ typedef  pthread_mutex_t          adb_mutex_t;
 #define  ADB_MUTEX(x)   extern adb_mutex_t  x;
 #include "mutex_list.h"
 
-int _fds[10240];
-int _fds_count = 0;
+extern int _fds[10240];
+extern int _fds_count;
 static __inline__ void  close_on_exec(int  fd)
 {
     _fds[_fds_count++] = fd;

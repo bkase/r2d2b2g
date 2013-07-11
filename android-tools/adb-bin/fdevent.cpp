@@ -113,6 +113,7 @@ static int fd_table_max = 0;
 
 static int epoll_fd = -1;
 
+extern THREAD_LOCAL void (*restart_me)();
 static void fdevent_init()
 {
         /* XXX: what's a good size for the passed in hint? */
@@ -120,7 +121,8 @@ static void fdevent_init()
 
     if(epoll_fd < 0) {
         perror("epoll_create() failed");
-        exit(1);
+        restart_me();
+        return;
     }
 
         /* mark for close-on-exec */
@@ -184,12 +186,14 @@ static void fdevent_update(fdevent *fde, unsigned events)
         if(ev.events) {
             if(epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fde->fd, &ev)) {
                 perror("epoll_ctl() failed\n");
-                exit(1);
+                restart_me();
+                return;
             }
         } else {
             if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fde->fd, &ev)) {
                 perror("epoll_ctl() failed\n");
-                exit(1);
+                restart_me();
+                return;
             }
         }
     } else {
@@ -199,7 +203,8 @@ static void fdevent_update(fdevent *fde, unsigned events)
         if(ev.events) {
             if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fde->fd, &ev)) {
                 perror("epoll_ctl() failed\n");
-                exit(1);
+                restart_me();
+                return;
             }
         }
     }
@@ -216,7 +221,8 @@ static void fdevent_process()
     if(n < 0) {
         if(errno == EINTR) return;
         perror("epoll_wait");
-        exit(1);
+        restart_me();
+        return;
     }
 
     for(i = 0; i < n; i++) {

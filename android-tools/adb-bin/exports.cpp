@@ -23,6 +23,7 @@ void DLL_EXPORT kill_device_loop();
 #endif
 DLL_EXPORT int usb_monitor(struct dll_bridge * bridge);
 DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
+DLL_EXPORT void install_thread_locals(void (*restart_me)());
 
 // TODO: Figure out how to malloc straight from js-ctypes on mac osx
   DLL_EXPORT void * malloc_(int size) {
@@ -118,4 +119,8 @@ DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPI
     printf("SPAWNED device_output_thread\n");
     output_thread((void *)t, io_bridge);
     return 0;
+  }
+
+  DLL_EXPORT void install_thread_locals(void (*restart_me)()) {
+    install_thread_locals_(restart_me);
   }

@@ -92,6 +92,10 @@
         });
         // add ourselves to __workers (to be terminated later)
         this.context.__workers.push(this);
+        // start a restart-me listener
+        this._restartIdx = this.listen("restart-me", (function restart_me() {
+          this.context.restart();
+        }).bind(this));
       });
     } else {
 
@@ -177,6 +181,7 @@
     terminate: function terminate() {
       this.freeListener("_task", this._taskIdx);
       this.freeListener("log", this._logIdx);
+      this.freeListener("restart-me", this._restartIdx);
       this.worker.terminate();
       return this;
     },

@@ -26,6 +26,10 @@ function debug() {
 let I = null;
 let libadb = null;
 let libPath_;
+let restartMeFn = function restart_me() {
+  worker.emitAndForget("restart-me", { });
+};
+
 worker.once("init", function({ libPath }) {
   libPath_ = libPath;
 
@@ -44,6 +48,14 @@ worker.once("init", function({ libPath }) {
               // the two ends of the pipe (sv)
               args: [ ctypes.ArrayType(ctypes.int, 2) ]
             }, libadb);
+
+  let install_thread_locals =
+      I.declare({ name: "install_thread_locals",
+                  returns: ctypes.void_t,
+                  args: [ CallbackType.ptr ]
+                }, libadb);
+
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 });
 
 worker.once("start", function({ port }) {

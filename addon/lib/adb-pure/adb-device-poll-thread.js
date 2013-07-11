@@ -7,7 +7,7 @@
  */
 
 'use strict';
- 
+
 const URL_PREFIX = self.location.href.replace(/adb\-device\-poll\-thread\.js/, "");
 const INSTANTIATOR_URL = URL_PREFIX + "ctypes-instantiator.js";
 const EVENTED_CHROME_WORKER_URL = URL_PREFIX + "evented-chrome-worker.js";
@@ -20,15 +20,26 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
-const I = new Instantiator;
-let libadb = null;
-
 function debug() {
   console.log.apply(console, ["AdbDevicePollThread: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
+const I = new Instantiator;
+let libadb = null;
+let restartMeFn = function restart_me() {
+  worker.emitAndForget("restart-me", { });
+};
+
 worker.once("init", function({ libPath, driversPath, platform }) {
   libadb = ctypes.open(libPath);
+
+  let install_thread_locals =
+      I.declare({ name: "install_thread_locals",
+                  returns: ctypes.void_t,
+                  args: [ CallbackType.ptr ]
+                }, libadb);
+
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 
   // on Linux, fallback to pthreads here
   if (platform === "linux") {
@@ -68,14 +79,14 @@ worker.once("init", function({ libPath, driversPath, platform }) {
         { "AdbCloseHandle": AdbCloseHandleType },
         { "AdbNextInterface": AdbNextInterfaceType }
       ];
-    
+
     let [struct_dll_bridge, bridge, ref] = new BridgeBuilder(I, libadbdrivers).build("dll_bridge", bridge_funcs);
-      
+
     I.declare({ name: "usb_monitor",
                 returns: ctypes.int,
                 args: [ struct_dll_bridge.ptr ]
               }, libadb);
-    
+
     I.use("usb_monitor")(bridge.address());
   } else {
     throw "Unknown platform : " + platform

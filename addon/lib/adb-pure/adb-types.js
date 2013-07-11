@@ -15,6 +15,7 @@
   }
 
   const NULL = ctypes.cast(ctypes.uint64_t(0x0), ctypes.void_t.ptr);
+  const CallbackType = ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, []);
   const AdbOpenAccessType = ctypes.int;
   const AdbOpenSharingMode = ctypes.int;
   const AdbInterfaceInfo =
@@ -111,6 +112,7 @@
 
   module.exports = {
     NULL: NULL,
+    CallbackType: CallbackType,
     AdbOpenAccessType: AdbOpenAccessType,
     AdbOpenSharingMode: AdbOpenSharingMode,
     AdbInterfaceInfo: AdbInterfaceInfo,

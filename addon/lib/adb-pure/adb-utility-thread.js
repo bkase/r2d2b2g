@@ -23,6 +23,10 @@ function debug() {
 let I = null;
 let libadb = null;
 let platform_ = null;
+let restartMeFn = function restart_me() {
+  worker.emitAndForget("restart-me", { });
+};
+
 worker.listen("init", function({ libPath, driversPath, platform }) {
   platform_ = platform;
 
@@ -34,6 +38,14 @@ worker.listen("init", function({ libPath, driversPath, platform }) {
               returns: ctypes.int,
               args: [ctypes.char.ptr] // service
             }, libadb);
+
+  let install_thread_locals =
+      I.declare({ name: "install_thread_locals",
+                  returns: ctypes.void_t,
+                  args: [ CallbackType.ptr ]
+                }, libadb);
+
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 });
 
 worker.listen("query", function({ service }) {

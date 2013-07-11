@@ -25,12 +25,24 @@ function debug() {
 let I = null;
 let libadb = null;
 let io;
+let restartMeFn = function restart_me() {
+  worker.emitAndForget("restart-me", { });
+};
+
 worker.once("init", function({ libPath }) {
   I = new Instantiator();
 
   libadb = ctypes.open(libPath);
 
   io = ioUtils(I, libadb);
+
+  let install_thread_locals =
+      I.declare({ name: "install_thread_locals",
+                  returns: ctypes.void_t,
+                  args: [ CallbackType.ptr ]
+                }, libadb);
+
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 });
 
 worker.listen("readStringFully", function({ fd, tag }) {

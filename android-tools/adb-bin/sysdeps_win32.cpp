@@ -7,7 +7,7 @@
 #include "adb.h"
 
 
-
+extern THREAD_LOCAL void (*restart_me)();
 extern void fatal(const char *fmt, ...);
 
 #define assert(cond)  do { if (!(cond)) fatal( "assertion failed '%s' on %s:%ld\n", #cond, __FILE__, __LINE__ ); } while (0)
@@ -569,7 +569,7 @@ static const FHClassRec  _fh_socket_class =
 
 static int  _winsock_init;
 
-static void
+void
 _cleanup_winsock( void )
 {
     WSACleanup();
@@ -584,7 +584,7 @@ _init_winsock( void )
         if (rc != 0) {
             fatal( "adb: could not initialize Winsock\n" );
         }
-        atexit( _cleanup_winsock );
+        // atexit( _cleanup_winsock );
         _winsock_init = 1;
     }
 }
@@ -2073,7 +2073,7 @@ static int _event_socket_start( EventHook  hook )
             D( "_event_socket_start: WSAEventSelect() for %s failed, error %d\n", hook->fh->name, WSAGetLastError() );
             CloseHandle( hook->h );
             hook->h = INVALID_HANDLE_VALUE;
-            exit(1);
+            restart_me();
             return 0;
         }
         fh->mask = flags;

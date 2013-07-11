@@ -9,7 +9,7 @@ Cu.import("resource://gre/modules/ctypes.jsm");
 const { platform } = require("system");
 
 const { Instantiator } = require("adb-pure/ctypes-instantiator");
-const { unpackPtr, atransport, AdbCloseHandleType, NULL } =
+const { unpackPtr, atransport, AdbCloseHandleType, NULL, CallbackType } =
     require("adb-pure/adb-types");
 const { ioUtils } = require("adb-pure/io-utils");
 

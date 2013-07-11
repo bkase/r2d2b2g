@@ -26,6 +26,9 @@ function debug() {
 
 let I = null;
 let libadb = null;
+let restartMeFn = function restart_me() {
+  worker.emitAndForget("restart-me", { });
+};
 
 worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platform }) {
   I = new Instantiator();
@@ -34,6 +37,14 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
   debug("unpacked ptr: " + t_ptrS);
 
   libadb = ctypes.open(libPath);
+
+  let install_thread_locals =
+      I.declare({ name: "install_thread_locals",
+                  returns: ctypes.void_t,
+                  args: [ CallbackType.ptr ]
+                }, libadb);
+
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 
   if (platform === "winnt") {
     const libadbdrivers = ctypes.open(driversPath);

@@ -56,6 +56,7 @@ FILE* debugLog;
 FILE* LOG_FILE;
 #endif
 
+THREAD_LOCAL void (*restart_me)();
 int HOST = 0;
 int gListenAll = 0;
 
@@ -170,7 +171,12 @@ void cleanup_all() {
   printf("Done removing all listeners\n");
 #ifdef WIN32
     fclose(LOG_FILE); // close the log
+    _cleanup_winsock(); // cleanup sockets
 #endif
+}
+
+void install_thread_locals_(void (*restart_me_)()) {
+  restart_me = restart_me_;
 }
 
 void fatal(const char *fmt, ...)
@@ -181,7 +187,7 @@ void fatal(const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     va_end(ap);
-    exit(-1);
+    restart_me();
 }
 
 void fatal_errno(const char *fmt, ...)
@@ -192,7 +198,7 @@ void fatal_errno(const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     va_end(ap);
-    exit(-1);
+    restart_me();
 }
 
 int   adb_trace_mask;
@@ -1329,8 +1335,8 @@ static int should_drop_privileges() {
 }
 #endif /* !ADB_HOST */
 
-extern int _fds[10240];
-extern int _fds_count;
+int _fds[10240];
+int _fds_count = 0;
 
 void * server_thread(void * args) {
   adb_sysdeps_init();
@@ -1402,7 +1408,6 @@ void * server_thread(void * args) {
         D("Error installing listener");
         return NULL;
 
-        // exit(1);
     }
 #else
     property_get("ro.adb.secure", value, "0");
@@ -1474,7 +1479,6 @@ void * server_thread(void * args) {
         if(install_listener(local_name, "*smartsocket*", NULL, 0)) {
             printf("FAILED to install listener\n");
             return -1;
-            // exit(1);
         }
     }
 
