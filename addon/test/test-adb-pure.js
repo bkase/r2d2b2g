@@ -88,6 +88,7 @@ exports["test a list devices"] = function(assert, done) {
         if (e[0]) {
           let [, status] = e[0];
           if (status === "offline") {
+            isPhonePluggedIn = false;
             dumpBanner("DEVICE OFFLINE, RECONNECT TO CONTINUE");
             waitUntil(function() isPhonePluggedIn, function andThen() {
               next(e);
