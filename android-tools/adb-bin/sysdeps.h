@@ -84,7 +84,7 @@ static __inline__ int  adb_thread_create_raw( adb_thread_t  *thread, adb_thread_
 }
 
 static VOID CALLBACK callback(unsigned long data) {
-  D("Callback called from APC queue");
+  printf("Callback called from APC queue");
   _endthreadex(0);
 }
 
