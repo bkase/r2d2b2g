@@ -54,6 +54,13 @@ LIBADB_VERSION = 0.1
 # binaries from the FTP server.
 LIBADB_LOCATION ?= remote
 
+# This variable determines whether or not ADB is built with crypto support
+# The values are "off" (crypto is disabled) or "dynamic" (crypto is enabled
+# and linked dynamically) or "static" (crypto is enabled and linked statically 
+# on linux)
+ADB_AUTH ?= off
+export ADB_AUTH
+
 # Currently, all B2G builds are custom so we can optimize for code size and fix
 # bugs in B2G or its nightly build environments (like 844047 and 815805).
 

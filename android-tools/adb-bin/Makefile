@@ -28,15 +28,27 @@ ifeq ($(shell uname -s), Darwin)
   CPPSRCS+= usb_osx.cpp
   CPPSRCS+= get_my_path_darwin.cpp
   CPPSRCS+= fdevent.cpp
-  CPPSRCS+= adb_auth_host.cpp
-  LIBS+= -lz -lpthread -framework CoreFoundation -framework IOKit -framework Carbon -lcrypto
+  ifeq ($(ADB_AUTH), static)
+    CPPSRCS+= adb_auth_host.cpp
+    LIBS+= -lcrypto
+  else ifeq ($(ADB_AUTH), dynamic)
+    CPPSRCS+= adb_auth_host.cpp
+    LIBS+= -lcrypto
+  endif
+  LIBS+= -lz -lpthread -framework CoreFoundation -framework IOKit -framework Carbon
 endif
 ifeq ($(shell uname -s), Linux)
   CSRCS+= usb_linux.c
   CSRCS+= get_my_path_linux.c
   CSRCS+= fdevent.c
-  CSRCS+= adb_auth_host.c
-  LIBS+= -Wl,-Bstatic -lcrypto -Wl,-Bdynamic -lc -lpthread -lz -ldl
+  ifeq ($(ADB_AUTH), static)
+    CPPSRCS+= adb_auth_host.c
+    LIBS+= -Wl,-Bstatic -lcrypto
+  else ifeq ($(ADB_AUTH), dynamic)
+    CPPSRCS+= adb_auth_host.c
+    LIBS+= -Wl,-Bdynamic -lcrypto
+  endif
+  LIBS+= -Wl,-Bdynamic -lc -lpthread -lz -ldl
   LDFLAGS+= -Wl,-Bsymbolic
 endif
 
@@ -64,6 +76,9 @@ CPPFLAGS+= -g3
 CPPFLAGS+= -DHAVE_FORKEXEC=1
 CPPFLAGS+= -DHAVE_SYMLINKS
 CPPFLAGS+= -DHAVE_TERMIO_H
+ifeq ($(ADB_AUTH), off)
+  CPPFLAGS+= -DNO_AUTH
+endif
 CPPFLAGS+= -fPIC
 CPPFLAGS+= -std=gnu99
 ifeq ($(shell getconf LONG_BIT), 64)
