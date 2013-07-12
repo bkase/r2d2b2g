@@ -4,6 +4,16 @@
 
 'use strict';
 
+/* Fake require statements so that the module dependency graph has web workers
+  require("adb-pure/adb-server-thread.js");
+  require("adb-pure/adb-io-thread.js");
+  require("adb-pure/adb-utility-thread.js");
+  require("adb-pure/adb-device-poll-thread.js");
+  require("adb-pure/adb-io-thread-spawner.js");
+  require("adb-pure/ctypes-bridge-builder.js");
+  require("adb-pure/worker-console.js");
+ */
+
 const { Cc, Ci, Cr, Cu, ChromeWorker } = require("chrome");
 const Promise = require("sdk/core/promise");
 
