@@ -37,6 +37,13 @@ worker.once("init", function({ libPath }) {
 
   libadb = ctypes.open(libPath);
 
+  let array_lists_init =
+      I.declare({ name: "array_lists_init",
+                  returns: ctypes.void_t,
+                  args: []
+                }, libadb);
+  array_lists_init();
+
   I.declare({ name: "main_server",
               returns: ctypes.int,
               // server_port

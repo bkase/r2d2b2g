@@ -20,6 +20,7 @@ CPPSRCS+= transport_local.cpp
 CPPSRCS+= transport_usb.cpp
 CPPSRCS+= usb_vendors.cpp
 CPPSRCS+= utils.cpp
+CPPSRCS+= declare_array_lists.cpp
 
 CPPSRCS+= exports.cpp
 

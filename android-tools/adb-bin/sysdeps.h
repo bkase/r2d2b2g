@@ -20,6 +20,8 @@
 #ifndef _ADB_SYSDEPS_H
 #define _ADB_SYSDEPS_H
 
+#include "int_array_list.h"
+
 #ifdef __CYGWIN__
 #  undef _WIN32
 #endif
@@ -95,11 +97,10 @@ static __inline__ int adb_thread_cancel( adb_thread_t thread ) {
 	return 0;
 }
 
-extern int _fds[10240];
-extern int _fds_count;
+extern int_array_list * _fds;
 static __inline__ void  close_on_exec(int  fd)
 {
-    _fds[_fds_count++] = fd;
+    _fds->add(_fds, fd);
     /* nothing really */
 
 }
@@ -340,11 +341,10 @@ typedef  pthread_mutex_t          adb_mutex_t;
 #define  ADB_MUTEX(x)   extern adb_mutex_t  x;
 #include "mutex_list.h"
 
-extern int _fds[10240];
-extern int _fds_count;
+extern int_array_list * _fds;
 static __inline__ void  close_on_exec(int  fd)
 {
-    _fds[_fds_count++] = fd;
+    _fds->add(_fds, fd);
     // fcntl( fd, F_SETFD, FD_CLOEXEC );
 }
 

@@ -23,7 +23,6 @@
   #define EXTERN_C
 #endif
 
-
 // some extra visual studios stuff
 #ifdef _WIN32
 #define ADB_HOST 1
@@ -45,6 +44,7 @@ typedef void * ADBAPIHANDLE;
 
 #include "transport.h"  /* readx(), writex() */
 #include "sysdeps.h"
+#include "array_lists.h"
 
 #ifdef WIN32
 #include <usb100.h>
@@ -332,6 +332,7 @@ struct dll_bridge { };
 struct dll_io_bridge { };
 #endif
 
+void array_lists_init_();
 void install_thread_locals_(void (*restart_me_)());
 int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag );
 void dump_thread_tag();

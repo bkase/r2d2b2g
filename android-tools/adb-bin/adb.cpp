@@ -77,22 +77,24 @@ int get_guid() {
   return tmp;
 }
 
-
 ADB_MUTEX_DEFINE( threads_active_lock );
 
 // TODO: Dynamically remove dead threads
-adb_thread_t* __adb_threads_active[1024];
-char * __adb_tags_active[1024];
-int __adb_threads_active_count = 0;
+adb_thread_ptr_array_list * __adb_threads_active;
+str_array_list * __adb_tags_active;
+
+// a list of fds that need to be closed on exit
+int_array_list * _fds;
 
 #ifndef WIN32
 void dump_thread_tag() {
   adb_mutex_lock(&threads_active_lock);
   int didDump = 0;
   pthread_t currentThread = pthread_self();
-  for (int i = 0; i < __adb_threads_active_count; i++) {
-    if (pthread_equal(currentThread, *__adb_threads_active[i])) {
-      printf("CURRENT THREAD IS %s\n", __adb_tags_active[i]);
+  int len = __adb_threads_active->length;
+  for (int i = 0; i < len; i++) {
+    if (pthread_equal(currentThread, *__adb_threads_active->base[i])) {
+      printf("CURRENT THREAD IS %s\n", __adb_tags_active->base[i]);
       didDump = 1;
       adb_mutex_unlock(&threads_active_lock);
       return;
@@ -109,10 +111,16 @@ void dump_thread_tag() {
 void dump_thread_tag() { }
 #endif
 
+void array_lists_init_() {
+  __adb_threads_active = new_adb_thread_ptr_array_list(100);
+  __adb_tags_active = new_str_array_list(100);
+  _fds = new_int_array_list(20);
+}
+
 void addSpawnedThread(adb_thread_t * thread, char * tag) {
-  printf("Creating thread: %d\n", __adb_threads_active_count);
-  __adb_threads_active[__adb_threads_active_count] = thread;
-  __adb_tags_active[__adb_threads_active_count++] = strdup(tag);
+  printf("Creating thread: %d\n", __adb_threads_active->length);
+  __adb_threads_active->add(__adb_threads_active, thread);
+  __adb_tags_active->add(__adb_tags_active, strdup(tag));
 }
 
 int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag ) {
@@ -134,8 +142,9 @@ void cleanup_all() {
   #endif
 
   printf("Killing threads!\n");
-  for (i = 0; i < __adb_threads_active_count; i++) {
-    adb_thread_t *thread = __adb_threads_active[i];
+  int len = __adb_threads_active->length;
+  for (i = 0; i < len; i++) {
+    adb_thread_t *thread = __adb_threads_active->base[i];
     printf("Killing thread: %d, %p\n", i, thread);
 
     /*err = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -159,9 +168,11 @@ void cleanup_all() {
     }
 
     free(thread);
-    free(__adb_tags_active[i]);
+    free(__adb_tags_active->base[i]);
     printf("Freed thread: %d\n", i);
   }
+  free_adb_thread_ptr_array_list(__adb_threads_active);
+  free_str_array_list(__adb_tags_active);
   printf("Killed all threads!\n");
   printf("Freeing data\n");
   cleanup_transport();
@@ -1335,9 +1346,6 @@ static int should_drop_privileges() {
 }
 #endif /* !ADB_HOST */
 
-int _fds[10240];
-int _fds_count = 0;
-
 void * server_thread(void * args) {
   adb_sysdeps_init();
 
@@ -1527,10 +1535,12 @@ void * server_thread(void * args) {
     printf("Starting event loop...\n");
     fdevent_loop(exit_fd);
 
-    for (int i = 0; i < _fds_count; i++) {
+    for (int i = 0; i < _fds->length; i++) {
       printf("Closing %d\n", i);
-      adb_close(_fds[i]);
+      adb_close(_fds->base[i]);
     }
+
+    free_int_array_list(_fds);
     // usb_cleanup();
 
     return 0;
