@@ -42,10 +42,10 @@ ifeq ($(shell uname -s), Linux)
   CSRCS+= get_my_path_linux.c
   CSRCS+= fdevent.c
   ifeq ($(ADB_AUTH), static)
-    CPPSRCS+= adb_auth_host.c
+    CPPSRCS+= adb_auth_host.cpp
     LIBS+= -Wl,-Bstatic -lcrypto
   else ifeq ($(ADB_AUTH), dynamic)
-    CPPSRCS+= adb_auth_host.c
+    CPPSRCS+= adb_auth_host.cpp
     LIBS+= -Wl,-Bdynamic -lcrypto
   endif
   LIBS+= -Wl,-Bdynamic -lc -lpthread -lz -ldl
