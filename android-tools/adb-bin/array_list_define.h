@@ -16,9 +16,8 @@
 #define MAKE_FUNC(a, b) _MAKE_FUNC(a, b)
 
 static TYPE_NAME * MAKE_FUNC(TYPE_NAME, add) (TYPE_NAME * l, TYPE x) {
-  printf("In add\n");
   if (l->_capacity == l->length) {
-    l->base = realloc(l->base, l->_capacity*2);
+    l->base = (TYPE *)realloc(l->base, l->_capacity*2);
     l->_capacity *= 2;
   }
   l->base[l->length++] = x;
@@ -26,8 +25,8 @@ static TYPE_NAME * MAKE_FUNC(TYPE_NAME, add) (TYPE_NAME * l, TYPE x) {
 }
 
 TYPE_NAME * MAKE_FUNC(new, TYPE_NAME) (int initialCapacity) {
-  TYPE_NAME * list = malloc(sizeof(TYPE_NAME));
-  list->base = malloc(sizeof(TYPE)*initialCapacity);
+  TYPE_NAME * list = (TYPE_NAME *)malloc(sizeof(TYPE_NAME));
+  list->base = (TYPE *)malloc(sizeof(TYPE)*initialCapacity);
   list->add = MAKE_FUNC(TYPE_NAME, add);
   list->length = 0;
   list->_capacity = initialCapacity;
