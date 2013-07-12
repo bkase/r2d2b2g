@@ -69,20 +69,8 @@ function waitUntil(trigger, andThen) {
 }
 
 exports["test a list devices"] = function(assert, done) {
-  function next(e) {
-    if (isPhonePluggedIn) {
-      assert.pass("Devices: " + JSON.stringify(e));
-      dumpBanner("DEVICE IS PLUGGED IN");
-      done();
-    } else {
-      assert.pass("Devices: " + JSON.stringify(e));
-      dumpBanner("DEVICE IS NOT PLUGGED IN");
-      done();
-    }
-  }
-
   // Give adb 2 seconds to startup
-  timer.setTimeout(function() {
+  timer.setTimeout(function listDevices() {
     adb.listDevices().then(
       function success(e) {
         if (e[0]) {
@@ -91,11 +79,21 @@ exports["test a list devices"] = function(assert, done) {
             isPhonePluggedIn = false;
             dumpBanner("DEVICE OFFLINE, RECONNECT TO CONTINUE");
             waitUntil(function() isPhonePluggedIn, function andThen() {
-              next(e);
+              listDevices();
             });
+            return;
           }
         }
-        next(e);
+
+        if (isPhonePluggedIn) {
+          assert.pass("Devices: " + JSON.stringify(e));
+          dumpBanner("DEVICE IS PLUGGED IN");
+          done();
+        } else {
+          assert.pass("Devices: " + JSON.stringify(e));
+          dumpBanner("DEVICE IS NOT PLUGGED IN");
+          done();
+        }
       },
       function fail(e) {
         assert.fail("Failed to list devices: " + JSON.stringify(e));
