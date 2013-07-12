@@ -17,7 +17,7 @@
 
 static TYPE_NAME * MAKE_FUNC(TYPE_NAME, add) (TYPE_NAME * l, TYPE x) {
   if (l->_capacity == l->length) {
-    l->base = (TYPE *)realloc(l->base, l->_capacity*2);
+    l->base = (TYPE *)realloc(l->base, sizeof(TYPE)*l->_capacity*2);
     l->_capacity *= 2;
   }
   l->base[l->length++] = x;
