@@ -94,7 +94,7 @@ void dump_thread_tag() {
   int len = __adb_threads_active->length;
   for (int i = 0; i < len; i++) {
     if (pthread_equal(currentThread, *__adb_threads_active->base[i])) {
-      printf("CURRENT THREAD IS %s\n", __adb_tags_active->base[i]);
+      D("CURRENT THREAD IS %s\n", __adb_tags_active->base[i]);
       didDump = 1;
       adb_mutex_unlock(&threads_active_lock);
       return;
@@ -118,7 +118,7 @@ void array_lists_init_() {
 }
 
 void addSpawnedThread(adb_thread_t * thread, char * tag) {
-  printf("Creating thread: %d\n", __adb_threads_active->length);
+  D("Creating thread: %d\n", __adb_threads_active->length);
   __adb_threads_active->add(__adb_threads_active, thread);
   __adb_tags_active->add(__adb_tags_active, strdup(tag));
 }
@@ -134,52 +134,52 @@ int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  a
 void cleanup_all() {
   int err = 0;
   int i = 0;
-  printf("Cleaning USB (async)\n");
+  D("Cleaning USB (async)\n");
   // usb_cleanup();
   #ifdef __APPLE__
     // TODO: Figure out how to accomplish this with web workers
     // pthread_kill(*__adb_threads_active[1], SIGUSR2);
   #endif
 
-  printf("Killing threads!\n");
+  D("Killing threads!\n");
   int len = __adb_threads_active->length;
   for (i = 0; i < len; i++) {
     adb_thread_t *thread = __adb_threads_active->base[i];
-    printf("Killing thread: %d, %p\n", i, thread);
+    D("Killing thread: %d, %p\n", i, thread);
 
     /*err = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     if (err < 0) {
-      printf("ERROR: set cancel state %d\n", err);
+      D("ERROR: set cancel state %d\n", err);
     }
 
     err = pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     if (err < 0) {
-      printf("ERROR: set cancel type %d\n", err);
+      D("ERROR: set cancel type %d\n", err);
     }*/
 
     err = adb_thread_cancel(*thread);
     if (err < 0) {
-      printf("ERROR: cancelling %d\n", err);
+      D("ERROR: cancelling %d\n", err);
     }
 
     err = adb_thread_join(*thread);
     if (err < 0) {
-      printf("ERROR: joining %d\n", err);
+      D("ERROR: joining %d\n", err);
     }
 
     free(thread);
     free(__adb_tags_active->base[i]);
-    printf("Freed thread: %d\n", i);
+    D("Freed thread: %d\n", i);
   }
   free_adb_thread_ptr_array_list(__adb_threads_active);
   free_str_array_list(__adb_tags_active);
-  printf("Killed all threads!\n");
-  printf("Freeing data\n");
+  D("Killed all threads!\n");
+  D("Freeing data\n");
   cleanup_transport();
-  printf("Done freeing data\n");
-  printf("Removing all listeners on sockets\n");
+  D("Done freeing data\n");
+  D("Removing all listeners on sockets\n");
   remove_all_listeners();
-  printf("Done removing all listeners\n");
+  D("Done removing all listeners\n");
 #ifdef WIN32
     fclose(LOG_FILE); // close the log
     _cleanup_winsock(); // cleanup sockets
@@ -194,9 +194,9 @@ void fatal(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    fprintf(stderr, "error: ");
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    printf("error: ");
+    vprintf(fmt, ap);
+    printf("\n");
     va_end(ap);
     restart_me();
 }
@@ -205,9 +205,9 @@ void fatal_errno(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    fprintf(stderr, "error: %s: ", strerror(errno));
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    printf("error: %s: ", strerror(errno));
+    vprintf(fmt, ap);
+    printf("\n");
     va_end(ap);
     restart_me();
 }
@@ -785,7 +785,7 @@ static void ss_listener_event_func(int _fd, unsigned ev, void *_l)
 
         s = create_local_socket(fd);
         if(s) {
-            printf("in ss_listener_event_func connecting to smartsocket");
+            D("in ss_listener_event_func connecting to smartsocket\n");
             connect_to_smartsocket(s);
             return;
         }
@@ -971,7 +971,7 @@ static install_status_t install_listener(const char *local_name,
 {
     alistener *l;
 
-    printf("install_listener('%s','%s')\n", local_name, connect_to);
+    D("install_listener('%s','%s')\n", local_name, connect_to);
 
     for(l = listener_list.next; l != &listener_list; l = l->next){
         if(strcmp(local_name, l->local_name) == 0) {
@@ -992,7 +992,7 @@ static install_status_t install_listener(const char *local_name,
                 return INSTALL_STATUS_INTERNAL_ERROR;
             }
 
-            printf("rebinding '%s' to '%s'\n", local_name, connect_to);
+            D("rebinding '%s' to '%s'\n", local_name, connect_to);
             free((void*) l->connect_to);
             l->connect_to = cto;
             if (l->transport != transport) {
@@ -1010,14 +1010,13 @@ static install_status_t install_listener(const char *local_name,
 
     D("LOCAL NAME: %s\n", local_name);
 
-    printf("LOCAL NAME: %s\n", local_name);
     l->fd = local_name_to_fd(local_name);
-    printf("l->fd: %d\n", l->fd);
+    D("l->fd: %d\n", l->fd);
     if(l->fd < 0) {
         free((void*) l->local_name);
         free((void*) l->connect_to);
         free(l);
-        printf("cannot bind '%s'\n", local_name);
+        D("cannot bind '%s'\n", local_name);
         return INSTALL_STATUS_CANNOT_BIND;
     }
 
@@ -1368,7 +1367,6 @@ void * server_thread(void * args) {
 #endif
 
   if (is_lib_call) {
-      printf("THIS needs to run!\n");
       transport_type ttype = kTransportAny;
       char* serial = NULL;
       serial = getenv("ANDROID_SERIAL");
@@ -1376,8 +1374,8 @@ void * server_thread(void * args) {
       adb_set_tcp_specifics(server_port);
     }
 
-    fprintf(stdout,"adb_main is called\n");
-    printf("!! C code has started\n");
+    D("adb_main is called\n");
+    D("!! C code has started\n");
 #if !ADB_HOST
     int port;
     char value[PROPERTY_VALUE_MAX];
@@ -1398,22 +1396,21 @@ void * server_thread(void * args) {
 #if ADB_HOST
     HOST = 1;
     usb_vendors_init();
-    printf("Before USB init\n");
+    D("Before USB init\n");
     usb_init(spawnD);
-    printf("After USB init\n");
+    D("After USB init\n");
     // local_init(DEFAULT_ADB_LOCAL_TRANSPORT_PORT);
-	printf("After local_init\n");
+	  D("After local_init\n");
 	#ifndef NO_AUTH
     adb_auth_init();
 	#endif
-	printf("After auth_init\n");
+	  D("After auth_init\n");
 
 
     char local_name[30];
     build_local_name(local_name, sizeof(local_name), server_port);
     if(install_listener(local_name, "*smartsocket*", NULL, 0)) {
-        printf("FAILED to install listener\n");
-        D("Error installing listener");
+        D("Error installing listener\n");
         return NULL;
 
     }
@@ -1505,7 +1502,7 @@ void * server_thread(void * args) {
         property_get("persist.adb.tcp.port", value, "");
     }
     if (sscanf(value, "%d", &port) == 1 && port > 0) {
-        printf("using port=%d\n", port);
+        D("using port=%d\n", port);
         // listen on TCP port specified by service.adb.tcp.port property
         local_init(port);
     } else if (!usb) {
@@ -1532,11 +1529,11 @@ void * server_thread(void * args) {
 
     on_track_ready();
 
-    printf("Starting event loop...\n");
+    D("Starting event loop...\n");
     fdevent_loop(exit_fd);
 
     for (int i = 0; i < _fds->length; i++) {
-      printf("Closing %d\n", i);
+      D("Closing fd: %d at index: %d\n", _fds->base[i], i);
       adb_close(_fds->base[i]);
     }
 
@@ -1556,7 +1553,7 @@ int adb_main(int is_daemon, int server_port, int is_lib_call) {
 
   adb_thread_t * server_thread_ptr = (adb_thread_t*)malloc(sizeof(adb_thread_t));
   if(adb_thread_create(server_thread_ptr, server_thread, (void*)in, "server_thread")) {
-    printf("Error creating server thread\n");
+    D("Error creating server thread\n");
   }
 
   // usleep(1000000);
@@ -1922,7 +1919,7 @@ int recovery_mode = 0;
 int main(int argc, char **argv)
 {
     if (argc > 1) {
-      printf("IN HERE\n");
+      D("IN HERE\n");
       if (!strcmp(argv[1], "lib")) {
         adb_main(0, 5037, 1);
         while (1) {

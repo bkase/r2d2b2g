@@ -110,7 +110,7 @@ static void remote_close(atransport *t)
 
 static void remote_kick(atransport *t)
 {
-  printf("remote_kick called\n");
+    D("remote_kick called\n");
 #ifdef WIN32
     usb_kick(t->usb, t->close_handle_func);
 #else

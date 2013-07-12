@@ -518,7 +518,6 @@ void usb_kick(usb_handle *h)
             ** This is a workaround for that problem.
             */
             if (h->reaper_thread) {
-                printf("****************** BUG BUG BUG\n");
                 pthread_kill(h->reaper_thread, SIGALRM);
             }
 

@@ -689,7 +689,7 @@ void fdevent_subproc_setup()
 }
 
 static void fdevent_exit_func(int fd, unsigned ev, void * userdata) {
-    printf("fdevent_exit_func was fired!!\n");
+    D("fdevent_exit_func was fired!!\n");
     if(ev & FDE_READ){
          int death;
 
@@ -698,10 +698,10 @@ static void fdevent_exit_func(int fd, unsigned ev, void * userdata) {
          }
 
          if (death == 0xDEAD) {
-           printf("Got should die change\n");
+           D("Got should die change\n");
             SHOULD_DIE = 1;
          } else {
-           printf("suicide\n");
+           D("suicide\n");
            // abort
             *(void *)0;
          }
@@ -714,7 +714,7 @@ void fdevent_js_die_setup(int js_die_fd) {
     if(!fde)
         FATAL("cannot create fdevent for js-exit handler\n");
     fdevent_add(fde, FDE_READ);
-    printf("Added FDE");
+    D("Added FDE");
 }
 
 void fdevent_loop(int js_die_fd)
@@ -731,7 +731,7 @@ void fdevent_loop(int js_die_fd)
         while((fde = fdevent_plist_dequeue())) {
             fdevent_call_fdfunc(fde);
             if (SHOULD_DIE) {
-              printf("Exiting loop\n");
+              D("Exiting loop\n");
               return;
             }
         }

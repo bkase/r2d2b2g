@@ -312,7 +312,6 @@ char *adb_query(const char *service)
     unsigned n;
     char *tmp;
 
-    printf("adb_query: %s\n", service);
     D("adb_query: %s\n", service);
     int fd = adb_connect(service);
     if(fd < 0) {
@@ -324,7 +323,6 @@ char *adb_query(const char *service)
 
     buf[4] = 0;
     n = strtoul(buf, 0, 16);
-    printf("readx the first 4: %s\n", buf);
     D("readx the first 4: %s\n", buf);
     if(n > 1024) goto oops;
 
@@ -333,7 +331,6 @@ char *adb_query(const char *service)
 
     if(readx(fd, tmp, n) == 0) {
         tmp[n] = 0;
-        printf("the rest (from tmp): %s\n", tmp);
         D("the rest (from tmp): %s\n", tmp);
         adb_close(fd);
         return tmp;

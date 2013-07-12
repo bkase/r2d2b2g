@@ -145,8 +145,6 @@ dump_packet(const char* name, const char* func, apacket* p)
     else
         snprintf(arg1, sizeof arg1, "0x%x", p->msg.arg1);
 
-    printf("%s: %s: [%s] arg0=%s arg1=%s (len=%d) ",
-        name, func, cmd, arg0, arg1, len);
     D("%s: %s: [%s] arg0=%s arg1=%s (len=%d) ",
         name, func, cmd, arg0, arg1, len);
     dump_hex(p->data, len);
@@ -373,7 +371,7 @@ void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
     }
     // this code rarely executes if we are killing IO (since it will be killed from read_from_remote)
     if (started_output_cleanup && ended_output_cleanup) {
-      printf("Already cleaned (in output thread)\n");
+      D("Already cleaned (in output thread)\n");
       return NULL; // we're safe
     } else if (started_output_cleanup && !ended_output_cleanup) {
       printf("******* BUG: Undefined behavior in race detected (in output thread)!\n");
@@ -510,7 +508,6 @@ device_tracker_close( asocket*  socket )
     device_tracker*  tracker = (device_tracker*) socket;
     asocket*         peer    = socket->peer;
 
-    printf("Device tracker %p removed\n", tracker);
     D( "device tracker %p removed\n", tracker);
     if (peer) {
         peer->peer = NULL;
@@ -537,7 +534,7 @@ device_tracker_send( device_tracker*  tracker,
     apacket*  p = get_apacket();
     asocket*  peer = tracker->socket.peer;
 
-    printf("Device tracker send %p, sending: %s\n", tracker, buffer);
+    D("Device tracker send %p, sending: %s\n", tracker, buffer);
     memcpy(p->data, buffer, len);
     p->len = len;
     return peer->enqueue( peer, p );
@@ -548,7 +545,7 @@ static void
 device_tracker_ready( asocket*  socket )
 {
     device_tracker*  tracker = (device_tracker*) socket;
-    printf("Device tracker ready\n");
+    D("Device tracker ready\n");
 
     /* we want to send the device list when the tracker connects
     * for the first time, even if no update occured */
@@ -571,7 +568,6 @@ create_device_tracker(void)
 
     if(tracker == 0) fatal("cannot allocate device tracker");
 
-    printf("Device tracker %p created\n", tracker);
     D( "device tracker %p created\n", tracker);
 
     tracker->socket.enqueue = device_tracker_enqueue;
@@ -1246,7 +1242,6 @@ int readx(int fd, void *ptr, size_t len)
 #if ADB_TRACE_FORCE
     int  len0 = len;
 #endif
-    printf("readx: fd=%d wanted=%d\n", fd, (int)len);
     D("readx: fd=%d wanted=%d\n", fd, (int)len);
     while(len > 0) {
         r = adb_read(fd, p, len);
@@ -1266,7 +1261,6 @@ int readx(int fd, void *ptr, size_t len)
     }
 
 #if ADB_TRACE_FORCE
-    printf("readx: fd=%d wanted=%d got=%d\n", fd, len0, len0 - len);
     D("readx: fd=%d wanted=%d got=%d\n", fd, len0, len0 - len);
     dump_hex( ptr, len0 );
 #endif

@@ -402,7 +402,7 @@ static int get_should_kill() {
 void onTimerFired(CFRunLoopTimerRef timer, void * info) {
   if (get_should_kill()) {
     adb_mutex_destroy(&should_kill_lock);
-    printf("Cleaning in timer handler\n");
+    D("Cleaning in timer handler\n");
     CFRunLoopStop(currentRunLoop);
   }
 }
@@ -434,7 +434,6 @@ void* RunLoopThread(void* args)
 
     usb_cleanup();
 
-    printf("RunLoopThread done\n");
     DBG("RunLoopThread done\n");
     return NULL;    
 }
@@ -451,10 +450,10 @@ void usb_init(int (*spawnD)())
         adb_mutex_init(&start_lock, NULL);
         adb_cond_init(&start_cond, NULL);
 
-        printf("Before thread_create");
+        D("Before thread_create");
         if(spawnD())
             fatal_errno("cannot create RunLoopThread");
-        printf("After thread_create");
+        D("After thread_create");
 
         // Wait for initialization to finish
         adb_mutex_lock(&start_lock);
@@ -471,20 +470,19 @@ void usb_init(int (*spawnD)())
 void usb_cleanup()
 {
     DBG("usb_cleanup\n");
-    printf("Before close_usb_devices\n");
     close_usb_devices();
     if (currentRunLoop) {
-        printf("Before currentRunLoop stop\n");
+        D("Before currentRunLoop stop\n");
         CFRunLoopStop(currentRunLoop);
     }
 
-    printf("After currentRunLoop if\n");
+    D("After currentRunLoop if\n");
     if (notificationIterators != NULL) {
-        printf("Before notification free\n");
+        D("Before notification free\n");
         free(notificationIterators);
         notificationIterators = NULL;
     }
-    printf("After all\n");
+    D("After all\n");
 }
 
 int usb_write(usb_handle *handle, const void *buf, int len)

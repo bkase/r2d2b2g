@@ -1,4 +1,10 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#define  TRACE_TAG   TRACE_EXPORTS
+
+#include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -111,13 +117,13 @@ DLL_EXPORT void array_lists_init();
 #endif
 
   DLL_EXPORT int device_input_thread(atransport * t, struct dll_io_bridge * io_bridge) {
-    printf("SPAWNED device_input_thread\n");
+    D("SPAWNED device_input_thread\n");
     input_thread((void *)t, io_bridge);
     return 0;
   }
 
   DLL_EXPORT int device_output_thread(atransport * t, struct dll_io_bridge * io_bridge) {
-    printf("SPAWNED device_output_thread\n");
+    D("SPAWNED device_output_thread\n");
     output_thread((void *)t, io_bridge);
     return 0;
   }

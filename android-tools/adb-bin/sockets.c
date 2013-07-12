@@ -802,7 +802,7 @@ static int smart_socket_enqueue(asocket *s, apacket *p)
            /* if there's no remote we fail the connection
             ** right here and terminate it
             */
-        printf("s->transport: %p\n", s->transport);
+        D("s->transport: %p\n", s->transport);
         sendfailmsg(s->peer->fd, "device offline (x)");
         goto fail;
     }

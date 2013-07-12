@@ -193,7 +193,6 @@ int register_new_device(usb_handle* handle) {
 
 void* device_poll_thread(void* _bridge) {
   bridge = (struct dll_bridge *)_bridge;
-  printf("made device poll thread!!\n");
   D("Created device thread\n");
 
   while(1) {
@@ -206,9 +205,9 @@ void* device_poll_thread(void* _bridge) {
 
 void usb_init(int(*spawnD)()) {
 
-  printf("Pre-spawnD\n");
+  D("Pre-spawnD\n");
   spawnD();
-  printf("Post-spawnD\n");
+  D("Post-spawnD\n");
   // adb_thread_t tid;
 
   /*if(adb_thread_create(&tid, device_poll_thread, NULL, "device_poll")) {
@@ -379,7 +378,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
 
 void usb_cleanup_handle(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE), char * tag) {
   if (NULL != handle) {
-    printf("Called with tag: %s\n", tag);
+    D("Called with tag: %s\n", tag);
     if (NULL != handle->interface_name)
       free(handle->interface_name);
     if (NULL != handle->adb_write_pipe)
