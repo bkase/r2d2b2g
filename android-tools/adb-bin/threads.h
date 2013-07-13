@@ -9,8 +9,8 @@ void * RunLoopThread(void * unused);
 #else
 void * device_poll_thread(void * unused);
 #endif
-void * output_thread(void * _t, struct dll_io_bridge *);
-void * input_thread(void * _t, struct dll_io_bridge *);
+void * output_thread(void * _t);
+void * input_thread(void * _t);
 
 #endif
 
