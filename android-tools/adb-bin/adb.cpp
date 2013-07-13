@@ -37,14 +37,7 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-#if !ADB_HOST
-#include <private/android_filesystem_config.h>
-#include <sys/capability.h>
-#include <linux/prctl.h>
-#include <sys/mount.h>
-#else
 #include "usb_vendors.h"
-#endif
 
 #if ADB_TRACE
 ADB_MUTEX_DEFINE( D_lock );
@@ -61,10 +54,6 @@ int HOST = 0;
 int gListenAll = 0;
 
 static int auth_enabled = 0;
-
-#if !ADB_HOST
-static const char *adb_device_banner = "device";
-#endif
 
 static void remove_all_listeners(void);
 
@@ -272,59 +261,6 @@ void  adb_trace_init(void)
     }
 }
 
-#if !ADB_HOST
-/*
- * Implements ADB tracing inside the emulator.
- */
-
-#include <stdarg.h>
-
-/*
- * Redefine open and write for qemu_pipe.h that contains inlined references
- * to those routines. We will redifine them back after qemu_pipe.h inclusion.
- */
-
-#undef open
-#undef write
-#define open    adb_open
-#define write   adb_write
-#include <hardware/qemu_pipe.h>
-#undef open
-#undef write
-#define open    ___xxx_open
-#define write   ___xxx_write
-
-/* A handle to adb-debug qemud service in the emulator. */
-int   adb_debug_qemu = -1;
-
-/* Initializes connection with the adb-debug qemud service in the emulator. */
-static int adb_qemu_trace_init(void)
-{
-    char con_name[32];
-
-    if (adb_debug_qemu >= 0) {
-        return 0;
-    }
-
-    /* adb debugging QEMUD service connection request. */
-    snprintf(con_name, sizeof(con_name), "qemud:adb-debug");
-    adb_debug_qemu = qemu_pipe_open(con_name);
-    return (adb_debug_qemu >= 0) ? 0 : -1;
-}
-
-void adb_qemu_trace(const char* fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    char msg[1024];
-
-    if (adb_debug_qemu >= 0) {
-        vsnprintf(msg, sizeof(msg), fmt, args);
-        adb_write(adb_debug_qemu, msg, strlen(msg));
-    }
-}
-#endif  /* !ADB_HOST */
-
 apacket *get_apacket(void)
 {
     apacket *p = (apacket *)malloc(sizeof(apacket));
@@ -417,32 +353,7 @@ static void send_close(unsigned local, unsigned remote, atransport *t)
 
 static size_t fill_connect_data(char *buf, size_t bufsize)
 {
-#if ADB_HOST
     return snprintf(buf, bufsize, "host::") + 1;
-#else
-    static const char *cnxn_props[] = {
-        "ro.product.name",
-        "ro.product.model",
-        "ro.product.device",
-    };
-    static const int num_cnxn_props = ARRAY_SIZE(cnxn_props);
-    int i;
-    size_t remaining = bufsize;
-    size_t len;
-
-    len = snprintf(buf, remaining, "%s::", adb_device_banner);
-    remaining -= len;
-    buf += len;
-    for (i = 0; i < num_cnxn_props; i++) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get(cnxn_props[i], value, "");
-        len = snprintf(buf, remaining, "%s=%s;", cnxn_props[i], value);
-        remaining -= len;
-        buf += len;
-    }
-
-    return bufsize - remaining + 1;
-#endif
 }
 
 static void send_connect(atransport *t)
@@ -1097,44 +1008,6 @@ void start_logging(void)
 #endif
 }
 
-#if !ADB_HOST
-void start_device_log(void)
-{
-    int fd;
-    char    path[PATH_MAX];
-    struct tm now;
-    time_t t;
-    char value[PROPERTY_VALUE_MAX];
-
-    // read the trace mask from persistent property persist.adb.trace_mask
-    // give up if the property is not set or cannot be parsed
-    property_get("persist.adb.trace_mask", value, "");
-    if (sscanf(value, "%x", &adb_trace_mask) != 1)
-        return;
-
-    adb_mkdir("/data/adb", 0775);
-    tzset();
-    time(&t);
-    localtime_r(&t, &now);
-    strftime(path, sizeof(path),
-                "/data/adb/adb-%Y-%m-%d-%H-%M-%S.txt",
-                &now);
-    fd = unix_open(path, O_WRONLY | O_CREAT | O_TRUNC, 0640);
-    if (fd < 0)
-        return;
-
-    // redirect stdout and stderr to the log file
-    dup2(fd, 1);
-    dup2(fd, 2);
-    fprintf(stderr,"--- adb starting (pid %d) ---\n", getpid());
-    adb_close(fd);
-
-    fd = unix_open("/dev/null", O_RDONLY);
-    dup2(fd, 0);
-    adb_close(fd);
-}
-#endif
-
 #if ADB_HOST
 int launch_server(int server_port)
 {
@@ -1305,40 +1178,6 @@ void build_local_name(char* target_str, size_t target_size, int server_port)
   snprintf(target_str, target_size, "tcp:%d", server_port);
 }
 
-#if !ADB_HOST
-static int should_drop_privileges() {
-#ifndef ALLOW_ADBD_ROOT
-    return 1;
-#else /* ALLOW_ADBD_ROOT */
-    int secure = 0;
-    char value[PROPERTY_VALUE_MAX];
-
-   /* run adbd in secure mode if ro.secure is set and
-    ** we are not in the emulator
-    */
-    property_get("ro.kernel.qemu", value, "");
-    if (strcmp(value, "1") != 0) {
-        property_get("ro.secure", value, "1");
-        if (strcmp(value, "1") == 0) {
-            // don't run as root if ro.secure is set...
-            secure = 1;
-
-            // ... except we allow running as root in userdebug builds if the
-            // service.adb.root property has been set by the "adb root" command
-            property_get("ro.debuggable", value, "");
-            if (strcmp(value, "1") == 0) {
-                property_get("service.adb.root", value, "");
-                if (strcmp(value, "1") == 0) {
-                    secure = 0;
-                }
-            }
-        }
-    }
-    return secure;
-#endif /* ALLOW_ADBD_ROOT */
-}
-#endif /* !ADB_HOST */
-
 void * server_thread(void * args) {
   adb_sysdeps_init();
 
@@ -1369,13 +1208,6 @@ void * server_thread(void * args) {
     }
 
     D("!! C code has started\n");
-#if !ADB_HOST
-    int port;
-    char value[PROPERTY_VALUE_MAX];
-
-    umask(000);
-#endif
-
     // atexit(adb_cleanup);
 #ifdef HAVE_WIN32_PROC
     SetConsoleCtrlHandler( ctrlc_handler, TRUE );
@@ -1386,7 +1218,6 @@ void * server_thread(void * args) {
 
     init_transport_registration(spawnIO);
 
-#if ADB_HOST
     HOST = 1;
     usb_vendors_init();
     D("Before USB init\n");
@@ -1405,106 +1236,6 @@ void * server_thread(void * args) {
         return NULL;
 
     }
-#else
-    property_get("ro.adb.secure", value, "0");
-    auth_enabled = !strcmp(value, "1");
-    if (auth_enabled)
-        adb_auth_init();
-
-    // Our external storage path may be different than apps, since
-    // we aren't able to bind mount after dropping root.
-    const char* adb_external_storage = getenv("ADB_EXTERNAL_STORAGE");
-    if (NULL != adb_external_storage) {
-        setenv("EXTERNAL_STORAGE", adb_external_storage, 1);
-    } else {
-        D("Warning: ADB_EXTERNAL_STORAGE is not set.  Leaving EXTERNAL_STORAGE"
-          " unchanged.\n");
-    }
-
-    /* don't listen on a port (default 5037) if running in secure mode */
-    /* don't run as root if we are running in secure mode */
-    if (should_drop_privileges()) {
-        struct __user_cap_header_struct header;
-        struct __user_cap_data_struct cap[2];
-
-        if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
-            exit(1);
-        }
-
-        /* add extra groups:
-        ** AID_ADB to access the USB driver
-        ** AID_LOG to read system logs (adb logcat)
-        ** AID_INPUT to diagnose input issues (getevent)
-        ** AID_INET to diagnose network issues (netcfg, ping)
-        ** AID_GRAPHICS to access the frame buffer
-        ** AID_NET_BT and AID_NET_BT_ADMIN to diagnose bluetooth (hcidump)
-        ** AID_SDCARD_R to allow reading from the SD card
-        ** AID_SDCARD_RW to allow writing to the SD card
-        ** AID_MOUNT to allow unmounting the SD card before rebooting
-        ** AID_NET_BW_STATS to read out qtaguid statistics
-        */
-        gid_t groups[] = { AID_ADB, AID_LOG, AID_INPUT, AID_INET, AID_GRAPHICS,
-                           AID_NET_BT, AID_NET_BT_ADMIN, AID_SDCARD_R, AID_SDCARD_RW,
-                           AID_MOUNT, AID_NET_BW_STATS };
-        if (setgroups(sizeof(groups)/sizeof(groups[0]), groups) != 0) {
-            exit(1);
-        }
-
-        /* then switch user and group to "shell" */
-        if (setgid(AID_SHELL) != 0) {
-            exit(1);
-        }
-        if (setuid(AID_SHELL) != 0) {
-            exit(1);
-        }
-
-        memset(&header, 0, sizeof(header));
-        memset(cap, 0, sizeof(cap));
-
-        /* set CAP_SYS_BOOT capability, so "adb reboot" will succeed */
-        header.version = _LINUX_CAPABILITY_VERSION_3;
-        header.pid = 0;
-        cap[CAP_TO_INDEX(CAP_SYS_BOOT)].effective |= CAP_TO_MASK(CAP_SYS_BOOT);
-        cap[CAP_TO_INDEX(CAP_SYS_BOOT)].permitted |= CAP_TO_MASK(CAP_SYS_BOOT);
-        capset(&header, cap);
-
-        D("Local port disabled\n");
-    } else {
-        char local_name[30];
-        build_local_name(local_name, sizeof(local_name), server_port);
-        if(install_listener(local_name, "*smartsocket*", NULL, 0)) {
-            printf("FAILED to install listener\n");
-            return -1;
-        }
-    }
-
-    int usb = 0;
-    if (access(USB_ADB_PATH, F_OK) == 0 || access(USB_FFS_ADB_EP0, F_OK) == 0) {
-        // listen on USB
-        usb_init();
-        usb = 1;
-    }
-
-    // If one of these properties is set, also listen on that port
-    // If one of the properties isn't set and we couldn't listen on usb,
-    // listen on the default port.
-    property_get("service.adb.tcp.port", value, "");
-    if (!value[0]) {
-        property_get("persist.adb.tcp.port", value, "");
-    }
-    if (sscanf(value, "%d", &port) == 1 && port > 0) {
-        D("using port=%d\n", port);
-        // listen on TCP port specified by service.adb.tcp.port property
-        local_init(port);
-    } else if (!usb) {
-        // listen on default port
-        local_init(DEFAULT_ADB_LOCAL_TRANSPORT_PORT);
-    }
-
-    D("adb_main(): pre init_jdwp()\n");
-    init_jdwp();
-    D("adb_main(): post init_jdwp()\n");
-#endif
 
     if (is_daemon)
     {
@@ -1876,10 +1607,6 @@ int handle_host_request(char *service, transport_type ttype, char* serial, int r
     return -1;
 }
 
-#if !ADB_HOST
-int recovery_mode = 0;
-#endif
-
 int main(int argc, char **argv)
 {
     if (argc > 1) {
@@ -1893,24 +1620,10 @@ int main(int argc, char **argv)
     }
     //debugLog = fopen("/tmp/adb.log.debug", "a+");
     //fprintf(debugLog, "-- hit main()");
-#if ADB_HOST
     adb_sysdeps_init();
     adb_trace_init();
     D("Handling commandline()\n");
     printf("Commandline support has been turned off\n");
     // return adb_commandline(argc - 1, argv + 1);
     return 0;
-#else
-    /* If adbd runs inside the emulator this will enable adb tracing via
-     * adb-debug qemud service in the emulator. */
-    adb_qemu_trace_init();
-    if((argc > 1) && (!strcmp(argv[1],"recovery"))) {
-        adb_device_banner = "recovery";
-        recovery_mode = 1;
-    }
-
-    start_device_log();
-    D("Handling main()\n");
-    return adb_main(0, DEFAULT_ADB_PORT, 0);
-#endif
 }

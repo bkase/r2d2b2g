@@ -417,28 +417,11 @@ asocket *create_local_service_socket(const char *name)
     asocket *s;
     int fd;
 
-#if !ADB_HOST
-    if (!strcmp(name,"jdwp")) {
-        return create_jdwp_service_socket();
-    }
-    if (!strcmp(name,"track-jdwp")) {
-        return create_jdwp_tracker_service_socket();
-    }
-#endif
     fd = service_to_fd(name);
     if(fd < 0) return 0;
 
     s = create_local_socket(fd);
     D("LS(%d): bound to '%s' via %d\n", s->id, name, fd);
-
-#if !ADB_HOST
-    if ((!strncmp(name, "root:", 5) && getuid() != 0)
-        || !strncmp(name, "usb:", 4)
-        || !strncmp(name, "tcpip:", 6)) {
-        D("LS(%d): enabling exit_on_close\n", s->id);
-        s->exit_on_close = 1;
-    }
-#endif
 
     return s;
 }
@@ -707,7 +690,6 @@ static int smart_socket_enqueue(asocket *s, apacket *p)
 
     D("SS(%d): '%s'\n", s->id, (char*) (p->data + 4));
 
-#if ADB_HOST
     service = (char *)p->data + 4;
     if(!strncmp(service, "host-serial:", strlen("host-serial:"))) {
         char* serial_end;
@@ -785,18 +767,6 @@ static int smart_socket_enqueue(asocket *s, apacket *p)
         s2->ready(s2);
         return 0;
     }
-#else /* !ADB_HOST */
-    if (s->transport == NULL) {
-        char* error_string = "unknown failure";
-        s->transport = acquire_one_transport (CS_ANY,
-                kTransportAny, NULL, &error_string);
-
-        if (s->transport == NULL) {
-            sendfailmsg(s->peer->fd, error_string);
-            goto fail;
-        }
-    }
-#endif
 
     if(!(s->transport) || (s->transport->connection_state == CS_OFFLINE)) {
            /* if there's no remote we fail the connection

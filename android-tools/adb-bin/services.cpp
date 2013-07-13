@@ -258,118 +258,10 @@ static int create_service_thread(void (*func)(int, void *), void *cookie)
     return s[0];
 }
 
-#if !ADB_HOST
-static int create_subprocess(const char *cmd, const char *arg0, const char *arg1, pid_t *pid)
-{
-#ifdef HAVE_WIN32_PROC
-    D("create_subprocess(cmd=%s, arg0=%s, arg1=%s)\n", cmd, arg0, arg1);
-    fprintf(stderr, "error: create_subprocess not implemented on Win32 (%s %s %s)\n", cmd, arg0, arg1);
-    return -1;
-#else /* !HAVE_WIN32_PROC */
-    char *devname;
-    int ptm;
-
-    ptm = unix_open("/dev/ptmx", O_RDWR); // | O_NOCTTY);
-    if(ptm < 0){
-        printf("[ cannot open /dev/ptmx - %s ]\n",strerror(errno));
-        return -1;
-    }
-    fcntl(ptm, F_SETFD, FD_CLOEXEC);
-
-    if(grantpt(ptm) || unlockpt(ptm) ||
-       ((devname = (char*) ptsname(ptm)) == 0)){
-        printf("[ trouble with /dev/ptmx - %s ]\n", strerror(errno));
-        adb_close(ptm);
-        return -1;
-    }
-
-    *pid = fork();
-    if(*pid < 0) {
-        printf("- fork failed: %s -\n", strerror(errno));
-        adb_close(ptm);
-        return -1;
-    }
-
-    if(*pid == 0){
-        int pts;
-
-        setsid();
-
-        pts = unix_open(devname, O_RDWR);
-        if(pts < 0) {
-            fprintf(stderr, "child failed to open pseudo-term slave: %s\n", devname);
-            exit(-1);
-        }
-
-        dup2(pts, 0);
-        dup2(pts, 1);
-        dup2(pts, 2);
-
-        adb_close(pts);
-        adb_close(ptm);
-
-        // set OOM adjustment to zero
-        char text[64];
-        snprintf(text, sizeof text, "/proc/%d/oom_adj", getpid());
-        int fd = adb_open(text, O_WRONLY);
-        if (fd >= 0) {
-            adb_write(fd, "0", 1);
-            adb_close(fd);
-        } else {
-           D("adb: unable to open %s\n", text);
-        }
-        execl(cmd, cmd, arg0, arg1, NULL);
-        fprintf(stderr, "- exec '%s' failed: %s (%d) -\n",
-                cmd, strerror(errno), errno);
-        exit(-1);
-    } else {
-        // Don't set child's OOM adjustment to zero.
-        // Let the child do it itself, as sometimes the parent starts
-        // running before the child has a /proc/pid/oom_adj.
-        // """adb: unable to open /proc/644/oom_adj""" seen in some logs.
-        return ptm;
-    }
-#endif /* !HAVE_WIN32_PROC */
-}
-#endif  /* !ABD_HOST */
-
 #if ADB_HOST
 #define SHELL_COMMAND "/bin/sh"
 #else
 #define SHELL_COMMAND "/system/bin/sh"
-#endif
-
-#if !ADB_HOST
-static void subproc_waiter_service(int fd, void *cookie)
-{
-    pid_t pid = (pid_t)cookie;
-
-    D("entered. fd=%d of pid=%d\n", fd, pid);
-    for (;;) {
-        int status;
-        pid_t p = waitpid(pid, &status, 0);
-        if (p == pid) {
-            D("fd=%d, post waitpid(pid=%d) status=%04x\n", fd, p, status);
-            if (WIFSIGNALED(status)) {
-                D("*** Killed by signal %d\n", WTERMSIG(status));
-                break;
-            } else if (!WIFEXITED(status)) {
-                D("*** Didn't exit!!. status %d\n", status);
-                break;
-            } else if (WEXITSTATUS(status) >= 0) {
-                D("*** Exit code %d\n", WEXITSTATUS(status));
-                break;
-            }
-         }
-    }
-    D("shell exited fd=%d of pid=%d err=%d\n", fd, pid, errno);
-    if (SHELL_EXIT_NOTIFY_FD >=0) {
-      int res;
-      res = writex(SHELL_EXIT_NOTIFY_FD, &fd, sizeof(fd));
-      D("notified shell exit via fd=%d for pid=%d res=%d errno=%d\n",
-        SHELL_EXIT_NOTIFY_FD, pid, res, errno);
-    }
-}
 #endif
 
 int service_to_fd(const char *name)
@@ -384,13 +276,9 @@ int service_to_fd(const char *name)
             if (ret >= 0)
                 disable_tcp_nagle(ret);
         } else {
-#if ADB_HOST
             adb_mutex_lock(&dns_lock);
             ret = socket_network_client(name + 1, port, SOCK_STREAM);
             adb_mutex_unlock(&dns_lock);
-#else
-            return -1;
-#endif
         }
 #ifndef HAVE_WINSOCK   /* winsock doesn't implement unix domain sockets */
     } else if(!strncmp(name, "local:", 6)) {
@@ -406,53 +294,10 @@ int service_to_fd(const char *name)
         ret = socket_local_client(name + 16,
                 ANDROID_SOCKET_NAMESPACE_FILESYSTEM, SOCK_STREAM);
 #endif
-#if ADB_HOST
     } else if(!strncmp("dns:", name, 4)){
         char *n = strdup(name + 4);
         if(n == 0) return -1;
         ret = create_service_thread(dns_service, n);
-#else /* !ADB_HOST */
-    } else if(!strncmp("dev:", name, 4)) {
-        ret = unix_open(name + 4, O_RDWR);
-    } else if(!strncmp(name, "framebuffer:", 12)) {
-        ret = create_service_thread(framebuffer_service, 0);
-    } else if(recovery_mode && !strncmp(name, "recover:", 8)) {
-        ret = create_service_thread(recover_service, (void*) atoi(name + 8));
-    } else if (!strncmp(name, "jdwp:", 5)) {
-        ret = create_jdwp_connection_fd(atoi(name+5));
-    } else if (!strncmp(name, "log:", 4)) {
-        ret = create_service_thread(log_service, get_log_file_path(name + 4));
-    } else if(!HOST && !strncmp(name, "shell:", 6)) {
-        if(name[6]) {
-            ret = create_subproc_thread(name + 6);
-        } else {
-            ret = create_subproc_thread(0);
-        }
-    } else if(!strncmp(name, "sync:", 5)) {
-        ret = create_service_thread(file_sync_service, NULL);
-    } else if(!strncmp(name, "remount:", 8)) {
-        ret = create_service_thread(remount_service, NULL);
-    } else if(!strncmp(name, "reboot:", 7)) {
-        void* arg = strdup(name + 7);
-        if(arg == 0) return -1;
-        ret = create_service_thread(reboot_service, arg);
-    } else if(!strncmp(name, "root:", 5)) {
-        ret = create_service_thread(restart_root_service, NULL);
-    } else if(!strncmp(name, "backup:", 7)) {
-        char* arg = strdup(name+7);
-        if (arg == NULL) return -1;
-        ret = backup_service(BACKUP, arg);
-    } else if(!strncmp(name, "restore:", 8)) {
-        ret = backup_service(RESTORE, NULL);
-    } else if(!strncmp(name, "tcpip:", 6)) {
-        int port;
-        if (sscanf(name + 6, "%d", &port) == 0) {
-            port = 0;
-        }
-        ret = create_service_thread(restart_tcp_service, (void *)port);
-    } else if(!strncmp(name, "usb:", 4)) {
-        ret = create_service_thread(restart_usb_service, NULL);
-#endif
 #if 0
     } else if(!strncmp(name, "echo:", 5)){
         ret = create_service_thread(echo_service, 0);

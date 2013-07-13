@@ -457,7 +457,6 @@ static int transport_registration_recv = -1;
 static fdevent transport_registration_fde;
 
 
-#if ADB_HOST
 static int list_transports_msg(char*  buffer, size_t  bufferlen)
 {
     char  head[5];
@@ -600,12 +599,6 @@ void  update_transports(void)
         tracker = next;
     }
 }
-#else
-void  update_transports(void)
-{
-    // nothing to do on the device side
-}
-#endif // ADB_HOST
 
 static int
 transport_read_action(int  fd, struct tmsg*  m)

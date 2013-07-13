@@ -429,25 +429,6 @@ int service_to_fd(const char *name);
 asocket *host_service_to_socket(const char*  name, const char *serial);
 #endif
 
-#if !ADB_HOST
-int       init_jdwp(void);
-asocket*  create_jdwp_service_socket();
-asocket*  create_jdwp_tracker_service_socket();
-int       create_jdwp_connection_fd(int  jdwp_pid);
-#endif
-
-#if !ADB_HOST
-typedef enum {
-    BACKUP,
-    RESTORE
-} BackupOperation;
-int backup_service(BackupOperation operation, char* args);
-void framebuffer_service(int fd, void *cookie);
-void log_service(int fd, void *cookie);
-void remount_service(int fd, void *cookie);
-char * get_log_file_path(const char * log_name);
-#endif
-
 /* packet allocator */
 apacket *get_apacket(void);
 void put_apacket(apacket *p);
@@ -479,21 +460,6 @@ typedef enum {
 } AdbTrace;
 
 #if ADB_TRACE
-
-#if !ADB_HOST
-/*
- * When running inside the emulator, guest's adbd can connect to 'adb-debug'
- * qemud service that can display adb trace messages (on condition that emulator
- * has been started with '-debug adb' option).
- */
-
-/* Delivers a trace message to the emulator via QEMU pipe. */
-void adb_qemu_trace(const char* fmt, ...);
-/* Macro to use to send ADB trace messages to the emulator. */
-#define DQ(...)    adb_qemu_trace(__VA_ARGS__)
-#else
-#define DQ(...) ((void)0)
-#endif  /* !ADB_HOST */
 
   extern int     adb_trace_mask;
   extern unsigned char    adb_trace_output_count;
@@ -595,17 +561,6 @@ extern int HOST;
 extern int SHELL_EXIT_NOTIFY_FD;
 
 #define CHUNK_SIZE (64*1024)
-
-#if !ADB_HOST
-#define USB_ADB_PATH     "/dev/android_adb"
-
-#define USB_FFS_ADB_PATH  "/dev/usb-ffs/adb/"
-#define USB_FFS_ADB_EP(x) USB_FFS_ADB_PATH#x
-
-#define USB_FFS_ADB_EP0   USB_FFS_ADB_EP(ep0)
-#define USB_FFS_ADB_OUT   USB_FFS_ADB_EP(ep1)
-#define USB_FFS_ADB_IN    USB_FFS_ADB_EP(ep2)
-#endif
 
 int sendfailmsg(int fd, const char *reason);
 int handle_host_request(char *service, transport_type ttype, char* serial, int reply_fd, asocket *s);

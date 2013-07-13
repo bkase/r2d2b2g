@@ -130,11 +130,7 @@ void init_usb_transport(atransport *t, usb_handle *h, int state)
     t->type = kTransportUsb;
     t->usb = h;
 
-#if ADB_HOST
     HOST = 1;
-#else
-    HOST = 0;
-#endif
 }
 
 #if ADB_HOST
