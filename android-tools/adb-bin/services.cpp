@@ -246,9 +246,7 @@ static int create_service_thread(void (*func)(int, void *), void *cookie)
     sti->cookie = cookie;
     sti->fd = s[1];
 
-    char tag[1024];
-    sprintf(tag, "service_%d", get_guid());
-    if(adb_thread_create( t, service_bootstrap_func, sti, tag )){
+    if(adb_thread_create( t, service_bootstrap_func, sti, "service" )){
         free(sti);
         adb_close(s[0]);
         adb_close(s[1]);
@@ -371,38 +369,6 @@ static void subproc_waiter_service(int fd, void *cookie)
       D("notified shell exit via fd=%d for pid=%d res=%d errno=%d\n",
         SHELL_EXIT_NOTIFY_FD, pid, res, errno);
     }
-}
-
-static int create_subproc_thread(const char *name)
-{
-    stinfo *sti;
-    adb_thread_t t;
-    int ret_fd;
-    pid_t pid;
-    if(name) {
-        ret_fd = create_subprocess(SHELL_COMMAND, "-c", name, &pid);
-    } else {
-        ret_fd = create_subprocess(SHELL_COMMAND, "-", 0, &pid);
-    }
-    D("create_subprocess() ret_fd=%d pid=%d\n", ret_fd, pid);
-
-    sti = malloc(sizeof(stinfo));
-    if(sti == 0) fatal("cannot allocate stinfo");
-    sti->func = subproc_waiter_service;
-    sti->cookie = (void*)pid;
-    sti->fd = ret_fd;
-
-    char tag[1024];
-    sprintf(tag, "subproc_%d", get_guid());
-    if(adb_thread_create( &t, service_bootstrap_func, sti, tag)){
-        free(sti);
-        adb_close(ret_fd);
-        printf("cannot create service thread\n");
-        return -1;
-    }
-
-    D("service thread started, fd=%d pid=%d\n",ret_fd, pid);
-    return ret_fd;
 }
 #endif
 

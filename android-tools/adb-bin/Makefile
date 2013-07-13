@@ -11,8 +11,6 @@ CSRCS+= sockets.c
 CPPSRCS+= adb.cpp
 CPPSRCS+= adb_client.cpp
 
-CPPSRCS+= commandline.cpp
-CPPSRCS+= console.cpp
 CPPSRCS+= file_sync_client.cpp
 CPPSRCS+= services.cpp
 CPPSRCS+= transport.cpp

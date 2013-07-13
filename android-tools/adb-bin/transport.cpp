@@ -27,6 +27,7 @@
 
 #define   TRACE_TAG  TRACE_TRANSPORT
 #include "adb.h"
+#include "array_lists.h"
 #include "threads.h"
 
 //#define D_ D
@@ -606,13 +607,6 @@ void  update_transports(void)
 }
 #endif // ADB_HOST
 
-typedef struct tmsg tmsg;
-struct tmsg
-{
-    atransport *transport;
-    int         action;
-};
-
 static int
 transport_read_action(int  fd, struct tmsg*  m)
 {
@@ -665,11 +659,10 @@ struct spawnFunc_carrier {
 
 // TODO: free these as they are finished being used
 //    (perhaps could use a signal and have transport_reg_func block until signal fired)
-static tmsg * tmsgs[1024];
-static int tmsgs_count = 0;
+extern tmsg_ptr_array_list * _tmsgs;
 static tmsg * addTMessage() {
   tmsg * tmp = (tmsg *)malloc(sizeof(tmsg));
-  tmsgs[tmsgs_count++] = tmp;
+  _tmsgs->add(_tmsgs, tmp);
   return tmp;
 }
 
@@ -783,9 +776,11 @@ static void transport_registration_func(int _fd, unsigned ev, void *data)
 static struct spawnFunc_carrier * s_carrier;
 void cleanup_transport() {
     free(s_carrier);
-    for (int i = 0; i < tmsgs_count; i++) {
-      free(tmsgs[tmsgs_count]);
+    int len = _tmsgs->length;
+    for (int i = 0; i < len; i++) {
+      free(_tmsgs->base[i]);
     }
+    free_tmsg_ptr_array_list(_tmsgs);
 }
 
 void init_transport_registration(int (*spawnIO)(atransport*))

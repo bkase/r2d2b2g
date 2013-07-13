@@ -68,15 +68,6 @@ static const char *adb_device_banner = "device";
 
 static void remove_all_listeners(void);
 
-ADB_MUTEX_DEFINE( guid_lock );
-static int x = 0;
-int get_guid() {
-  adb_mutex_lock(&guid_lock);
-  int tmp = x++;
-  adb_mutex_unlock(&guid_lock);
-  return tmp;
-}
-
 ADB_MUTEX_DEFINE( threads_active_lock );
 
 // TODO: Dynamically remove dead threads
@@ -85,6 +76,8 @@ str_array_list * __adb_tags_active;
 
 // a list of fds that need to be closed on exit
 int_array_list * _fds;
+
+tmsg_ptr_array_list * _tmsgs;
 
 #ifndef WIN32
 void dump_thread_tag() {
@@ -115,6 +108,7 @@ void array_lists_init_() {
   __adb_threads_active = new_adb_thread_ptr_array_list(100);
   __adb_tags_active = new_str_array_list(100);
   _fds = new_int_array_list(20);
+  _tmsgs = new_tmsg_ptr_array_list(100);
 }
 
 void addSpawnedThread(adb_thread_t * thread, char * tag) {
@@ -1374,7 +1368,6 @@ void * server_thread(void * args) {
       adb_set_tcp_specifics(server_port);
     }
 
-    D("adb_main is called\n");
     D("!! C code has started\n");
 #if !ADB_HOST
     int port;
@@ -1399,8 +1392,6 @@ void * server_thread(void * args) {
     D("Before USB init\n");
     usb_init(spawnD);
     D("After USB init\n");
-    // local_init(DEFAULT_ADB_LOCAL_TRANSPORT_PORT);
-	  D("After local_init\n");
 	#ifndef NO_AUTH
     adb_auth_init();
 	#endif
@@ -1740,35 +1731,8 @@ int handle_host_request(char *service, transport_type ttype, char* serial, int r
     }
 
     // remove TCP transport
-	// Disable this service to prevent complexity with Windows
-    /*if (!strncmp(service, "disconnect:", 11)) {
-        char buffer[4096];
-        memset(buffer, 0, sizeof(buffer));
-        char* serial = service + 11;
-        if (serial[0] == 0) {
-            // disconnect from all TCP devices
-            unregister_all_tcp_transports();
-        } else {
-            char hostbuf[100];
-            // assume port 5555 if no port is specified
-            if (!strchr(serial, ':')) {
-                snprintf(hostbuf, sizeof(hostbuf) - 1, "%s:5555", serial);
-                serial = hostbuf;
-            }
-            atransport *t = find_transport(serial);
-
-            if (t) {
-                unregister_transport(t);
-            } else {
-                snprintf(buffer, sizeof(buffer), "No such device %s", serial);
-            }
-        }
-
-        snprintf(buf, sizeof(buf), "OKAY%04x%s",(unsigned)strlen(buffer), buffer);
-        writex(reply_fd, buf, strlen(buf));
-        return 0;
-    }*/
-
+	// Disable the disconnect service to prevent complexity with Windows
+  //
     // returns our value for ADB_SERVER_VERSION
     if (!strcmp(service, "version")) {
         char version[12];
@@ -1933,7 +1897,9 @@ int main(int argc, char **argv)
     adb_sysdeps_init();
     adb_trace_init();
     D("Handling commandline()\n");
-    return adb_commandline(argc - 1, argv + 1);
+    printf("Commandline support has been turned off\n");
+    // return adb_commandline(argc - 1, argv + 1);
+    return 0;
 #else
     /* If adbd runs inside the emulator this will enable adb tracing via
      * adb-debug qemud service in the emulator. */

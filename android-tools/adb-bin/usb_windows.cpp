@@ -204,15 +204,9 @@ void* device_poll_thread(void* _bridge) {
 }
 
 void usb_init(int(*spawnD)()) {
-
   D("Pre-spawnD\n");
   spawnD();
   D("Post-spawnD\n");
-  // adb_thread_t tid;
-
-  /*if(adb_thread_create(&tid, device_poll_thread, NULL, "device_poll")) {
-    fatal_errno("cannot create input thread");
-  }*/
 }
 
 void usb_cleanup() {

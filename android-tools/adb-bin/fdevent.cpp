@@ -45,7 +45,7 @@
 int SHELL_EXIT_NOTIFY_FD = -1;
 
 // this gets set to 1 by the JS DIE fde
-int SHOULD_DIE = 0;
+static int SHOULD_DIE = 0;
 
 static void fatal(const char *fn, const char *fmt, ...)
 {
@@ -703,7 +703,7 @@ static void fdevent_exit_func(int fd, unsigned ev, void * userdata) {
          } else {
            D("suicide\n");
            // abort
-            *(void *)0;
+           __builtin_trap();
          }
     }
 }

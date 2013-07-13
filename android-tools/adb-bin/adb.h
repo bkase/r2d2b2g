@@ -44,7 +44,6 @@ typedef void * ADBAPIHANDLE;
 
 #include "transport.h"  /* readx(), writex() */
 #include "sysdeps.h"
-#include "array_lists.h"
 
 #ifdef WIN32
 #include <usb100.h>
@@ -291,10 +290,19 @@ struct adb_main_input {
   char * log_path;
 };
 
+typedef struct tmsg tmsg;
+struct tmsg
+{
+    atransport *transport;
+    int         action;
+};
+
 // a function carrier for a CFRunLoopTimerCallback
 struct func_carrier {
   int (*should_kill)(void);
 };
+
+#include "array_lists.h"
 
 #ifdef WIN32
 struct dll_io_bridge {

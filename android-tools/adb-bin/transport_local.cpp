@@ -258,9 +258,7 @@ static const char _ok_resp[]    = "ok";
         adb_thread_t * thr = malloc(sizeof(adb_thread_t));
         D("adb service is not available. Falling back to TCP socket.\n");
 
-        char tag[1024];
-        sprintf(tag, "qemu_socket_%d", get_guid());
-        adb_thread_create(thr, server_socket_thread, arg, tag);
+        adb_thread_create(thr, server_socket_thread, arg, "emu");
         return 0;
     }
 
@@ -332,7 +330,7 @@ void local_init(int port)
 
     char tag[1024];
     D("Just before adb_thread_create\n");
-    sprintf(tag, "local_socket %s_%d", HOST ? "client" : "server", get_guid());
+    sprintf(tag, "local_socket %s", HOST ? "client" : "server");
     if(adb_thread_create(thr, func, (void *)&port, tag)) {
         fatal_errno("cannot create local socket %s thread",
                     HOST ? "client" : "server");

@@ -19,8 +19,10 @@ DLL_EXPORT void * malloc_(int size);
 DLL_EXPORT int connect_service(const char * service);
 DLL_EXPORT int read_fd(int fd, char * buffer, int size);
 
-DLL_EXPORT int main_server(struct adb_main_input * input_args);
+DLL_EXPORT void install_thread_locals(void (*restart_me)());
+DLL_EXPORT void array_lists_init();
 
+DLL_EXPORT int main_server(struct adb_main_input * input_args);
 
 DLL_EXPORT int device_input_thread(atransport *, struct dll_io_bridge *);
 DLL_EXPORT int device_output_thread(atransport *, struct dll_io_bridge *);
@@ -29,8 +31,14 @@ void DLL_EXPORT kill_device_loop();
 #endif
 DLL_EXPORT int usb_monitor(struct dll_bridge * bridge);
 DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
-DLL_EXPORT void install_thread_locals(void (*restart_me)());
-DLL_EXPORT void array_lists_init();
+
+  DLL_EXPORT void install_thread_locals(void (*restart_me)()) {
+    install_thread_locals_(restart_me);
+  }
+
+  DLL_EXPORT void array_lists_init() {
+    array_lists_init_();
+  }
 
 // TODO: Figure out how to malloc straight from js-ctypes on mac osx
   DLL_EXPORT void * malloc_(int size) {
@@ -128,10 +136,3 @@ DLL_EXPORT void array_lists_init();
     return 0;
   }
 
-  DLL_EXPORT void install_thread_locals(void (*restart_me)()) {
-    install_thread_locals_(restart_me);
-  }
-
-  DLL_EXPORT void array_lists_init() {
-    array_lists_init_();
-  }

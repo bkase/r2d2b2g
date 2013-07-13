@@ -28,3 +28,9 @@
 #undef TYPE
 #undef TYPE_NAME
 
+#define TYPE tmsg *
+#define TYPE_NAME tmsg_ptr_array_list
+#include "array_list_define.h"
+#undef TYPE
+#undef TYPE_NAME
+
