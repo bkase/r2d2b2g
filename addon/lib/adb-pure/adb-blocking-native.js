@@ -20,6 +20,7 @@ function debug() {
 const I = new Instantiator();
 let libadb, libadbdrivers;
 let io;
+let io_bridge;
 module.exports = {
   reset: function reset() {
 
@@ -44,6 +45,29 @@ module.exports = {
 
     if (platform === "winnt") {
       libadbdrivers = ctypes.open(driversPath);
+
+
+      const io_bridge_funcs = [
+        { "AdbReadEndpointAsync": AdbReadEndpointAsyncType },
+        { "AdbWriteEndpointAsync": AdbWriteEndpointAsyncType },
+        { "AdbReadEndpointSync": AdbReadEndpointSyncType },
+        { "AdbWriteEndpointSync": AdbWriteEndpointSyncType },
+        { "AdbCloseHandle": AdbCloseHandleType },
+      ];
+
+      let [struct_dll_io_bridge, io_bridge_, ref] =
+        new BridgeBuilder(I, libadbdrivers).
+        build("dll_io_bridge", io_bridge_funcs);
+
+      io_bridge = io_bridge_;
+
+      let install_thread_locals =
+        I.declare({ name: "install_thread_locals",
+                    returns: ctypes.void_t,
+                    args: [ CallbackType.ptr, struct_dll_io_bridge.ptr ]
+                  }, libadb);
+
+      install_thread_locals(NULL, io_bridge.address());
 
       I.declare({ name: "AdbCloseHandle",
                   returns: AdbCloseHandleType.returnType,

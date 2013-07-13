@@ -40,9 +40,6 @@ static atransport transport_list = {
     /* .prev = */ &transport_list,
 };
 
-struct dll_io_bridge * i_bridge;
-struct dll_io_bridge * o_bridge;
-
 ADB_MUTEX_DEFINE( transport_lock );
 //#define ADB_TRACE_FORCE 1
 
@@ -75,7 +72,7 @@ static void  dump_hex( const unsigned char*  ptr, size_t  len )
 #endif
 
 void
-kick_transport(atransport*  t, bool (*close_handle_func)(ADBAPIHANDLE))
+kick_transport(atransport*  t)
 {
     if (t && !t->kicked)
     {
@@ -92,7 +89,6 @@ kick_transport(atransport*  t, bool (*close_handle_func)(ADBAPIHANDLE))
 
         if (!kicked) {
             D("calling t->kick\n");
-            t->close_handle_func = close_handle_func;
             t->kick(t);
         }
     }
@@ -263,9 +259,9 @@ void send_packet(apacket *p, atransport *t)
 }
 
 
-static void handle_output_oops(atransport * t, bool(*close_handle_func)(ADBAPIHANDLE)) {
+static void handle_output_oops(atransport * t) {
     D("%s: transport output thread is exiting\n", t->serial);
-    kick_transport(t, close_handle_func);
+    kick_transport(t);
     D("After kick, before unref\n");
     transport_unref(t);
     D("After unref\n");
@@ -296,7 +292,7 @@ static int ended_output_cleanup = 0;
 //    of these two handle_output_* functions, the transport may be unref'ed twice
 //    (and other sorts of bad things could happen)
 //
-void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
+void kill_io_pump(atransport * t) {
     if (started_output_cleanup && !ended_output_cleanup) {
       printf("******* BUG: Undefined behavior in race detected!\n");
       return;
@@ -307,7 +303,7 @@ void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
     }
 
     handle_output_offline(t);
-    handle_output_oops(t, close_handle_func);
+    handle_output_oops(t);
 }
 
 // TODO: Unplug -> Replug -> Unplug confuses the devices list
@@ -325,7 +321,7 @@ void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
 ** threads exit, but the input thread will kick the transport
 ** on its way out to disconnect the underlying device.
 */
-void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
+void *output_thread(void *_t)
 {
     // TODO: This will only work in the case where there is only one device connected for now
     // TODO: Locks?
@@ -333,8 +329,6 @@ void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
     ended_output_cleanup = 0;
 
      
-    o_bridge = _io_bridge;
-
     atransport *t = (atransport *)_t;
     apacket *p;
 
@@ -381,19 +375,13 @@ void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
     started_output_cleanup = 1;
     handle_output_offline(t);
 oops:
-#ifdef WIN32
-    handle_output_oops(t, o_bridge->AdbCloseHandle);
-#else
-    handle_output_oops(t, NULL);
-#endif
+    handle_output_oops(t);
     ended_output_cleanup = 1;
     return NULL;
 }
 
-void *input_thread(void *_t, struct dll_io_bridge * _io_bridge)
+void *input_thread(void *_t)
 {
-    i_bridge = _io_bridge;
-
     atransport *t = (atransport *)_t;
     apacket *p;
     int active = 0;
@@ -439,11 +427,7 @@ void *input_thread(void *_t, struct dll_io_bridge * _io_bridge)
     close_all_sockets(t);
 
     D("%s: transport input thread is exiting, fd %d\n", t->serial, t->fd);
-#ifdef WIN32
-    kick_transport(t, i_bridge->AdbCloseHandle);
-#else
-    kick_transport(t, NULL);
-#endif
+    kick_transport(t);
 	D("Post-kick transport input-thread\n");
     transport_unref(t);
 	D("Post-unref transport input-thread\n");

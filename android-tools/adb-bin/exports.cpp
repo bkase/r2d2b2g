@@ -22,14 +22,14 @@ DLL_EXPORT int read_fd(int fd, char * buffer, int size);
 DLL_EXPORT int main_server(struct adb_main_input * input_args);
 
 
-DLL_EXPORT int device_input_thread(atransport *, struct dll_io_bridge *);
-DLL_EXPORT int device_output_thread(atransport *, struct dll_io_bridge *);
+DLL_EXPORT int device_input_thread(atransport *);
+DLL_EXPORT int device_output_thread(atransport *);
 #ifdef __APPLE__
 void DLL_EXPORT kill_device_loop();
 #endif
 DLL_EXPORT int usb_monitor(struct dll_bridge * bridge);
-DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
-DLL_EXPORT void install_thread_locals(void (*restart_me)());
+DLL_EXPORT void on_kill_io_pump(atransport * t);
+DLL_EXPORT void install_thread_locals(void (*restart_me)(), struct dll_io_bridge *);
 DLL_EXPORT void array_lists_init();
 
 // TODO: Figure out how to malloc straight from js-ctypes on mac osx
@@ -55,8 +55,8 @@ DLL_EXPORT void array_lists_init();
   }
 #endif
 
-  DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)) {
-    kill_io_pump(t, close_handle_func);
+  DLL_EXPORT void on_kill_io_pump(atransport * t) {
+    kill_io_pump(t);
   }
 
   //============================
@@ -116,20 +116,20 @@ DLL_EXPORT void array_lists_init();
   }
 #endif
 
-  DLL_EXPORT int device_input_thread(atransport * t, struct dll_io_bridge * io_bridge) {
+  DLL_EXPORT int device_input_thread(atransport * t) {
     D("SPAWNED device_input_thread\n");
-    input_thread((void *)t, io_bridge);
+    input_thread((void *)t);
     return 0;
   }
 
-  DLL_EXPORT int device_output_thread(atransport * t, struct dll_io_bridge * io_bridge) {
+  DLL_EXPORT int device_output_thread(atransport * t) {
     D("SPAWNED device_output_thread\n");
-    output_thread((void *)t, io_bridge);
+    output_thread((void *)t);
     return 0;
   }
 
-  DLL_EXPORT void install_thread_locals(void (*restart_me)()) {
-    install_thread_locals_(restart_me);
+  DLL_EXPORT void install_thread_locals(void (*restart_me)(), struct dll_io_bridge * io_bridge) {
+    install_thread_locals_(restart_me, io_bridge);
   }
 
   DLL_EXPORT void array_lists_init() {

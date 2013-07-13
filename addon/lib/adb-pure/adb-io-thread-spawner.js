@@ -29,6 +29,7 @@ let libadb = null;
 let restartMeFn = function restart_me() {
   worker.emitAndForget("restart-me", { });
 };
+let io_bridge;
 
 worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platform }) {
   I = new Instantiator();
@@ -37,14 +38,6 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
   debug("unpacked ptr: " + t_ptrS);
 
   libadb = ctypes.open(libPath);
-
-  let install_thread_locals =
-      I.declare({ name: "install_thread_locals",
-                  returns: ctypes.void_t,
-                  args: [ CallbackType.ptr ]
-                }, libadb);
-
-  install_thread_locals(CallbackType.ptr(restartMeFn));
 
   if (platform === "winnt") {
     const libadbdrivers = ctypes.open(driversPath);
@@ -57,20 +50,38 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
       { "AdbCloseHandle": AdbCloseHandleType },
     ];
 
-    let [struct_dll_io_bridge, io_bridge, ref] =
+    let [struct_dll_io_bridge, io_bridge_, ref] =
       new BridgeBuilder(I, libadbdrivers).
       build("dll_io_bridge", io_bridge_funcs);
+    io_bridge = io_bridge_;
+
+    let install_thread_locals =
+      I.declare({ name: "install_thread_locals",
+                  returns: ctypes.void_t,
+                  args: [ CallbackType.ptr, struct_dll_io_bridge.ptr ]
+                }, libadb);
+
+    install_thread_locals(CallbackType.ptr(restartMeFn), io_bridge.address());
 
     I.declare({ name: threadName,
                 returns: ctypes.int,
-                args: [ atransport.ptr, struct_dll_io_bridge.ptr ]
+                args: [ atransport.ptr ]
               }, libadb);
 
     debug("Spawning: " + threadName);
     let spawn = I.use(threadName);
 
-    return spawn.apply( spawn, [ t_ptr, io_bridge.address() ] );
+    return spawn.apply( spawn, [ t_ptr ] );
   } else {
+
+    let install_thread_locals =
+        I.declare({ name: "install_thread_locals",
+                    returns: ctypes.void_t,
+                    args: [ CallbackType.ptr, ctypes.void_t.ptr ]
+                  }, libadb);
+
+    install_thread_locals(CallbackType.ptr(restartMeFn), NULL);
+
     I.declare({ name: threadName,
                 returns: ctypes.int,
                 args: [ atransport.ptr ]

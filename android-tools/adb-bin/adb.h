@@ -216,8 +216,6 @@ struct atransport
     void (*close)(atransport *t);
     void (*kick)(atransport *t);
 
-    bool (*close_handle_func)(ADBAPIHANDLE);
-
     int fd;
     int transport_socket;
     fdevent transport_fde;
@@ -333,14 +331,14 @@ struct dll_io_bridge { };
 #endif
 
 void array_lists_init_();
-void install_thread_locals_(void (*restart_me_)());
+void install_thread_locals_(void (*restart_me_)(), struct dll_io_bridge *);
 int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag );
 void dump_thread_tag();
 int get_guid();
 void cleanup_all(void);
 void cleanup_transport(void);
 void should_kill_device_loop();
-void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
+void kill_io_pump(atransport * t);
 
 void print_packet(const char *label, apacket *p);
 
@@ -387,7 +385,7 @@ atransport *acquire_one_transport(int state, transport_type ttype, const char* s
 void   add_transport_disconnect( atransport*  t, adisconnect*  dis );
 void   remove_transport_disconnect( atransport*  t, adisconnect*  dis );
 void   run_transport_disconnects( atransport*  t );
-void   kick_transport( atransport*  t, bool(*close_handle_func)(ADBAPIHANDLE) );
+void   kick_transport( atransport*  t);
 
 /* initialize a transport object's func pointers and state */
 #if ADB_HOST
@@ -556,13 +554,8 @@ void usb_init(int(*spawnD)());
 void usb_cleanup();
 int usb_write(usb_handle *h, const void *data, int len);
 int usb_read(usb_handle *h, void *data, int len);
-#ifdef WIN32
-void usb_kick(usb_handle *h, bool (*close_handle_func)(ADBAPIHANDLE));
-int usb_close(usb_handle *h, bool (*close_handle_func)(ADBAPIHANDLE));
-#else
 void usb_kick(usb_handle *h);
 int usb_close(usb_handle *h);
-#endif
 
 /* used for USB device detection */
 #if ADB_HOST
