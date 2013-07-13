@@ -119,19 +119,20 @@ int usb_write(usb_handle* handle, const void* data, int len);
 int usb_read(usb_handle *handle, void* data, int len);
 
 /// Cleans up opened usb handle
-void usb_cleanup_handle(usb_handle* handle);
+void usb_cleanup_handle(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE), char * tag);
 
 /// Cleans up (but don't close) opened usb handle
-void usb_kick(usb_handle *h);
+void usb_kick(usb_handle *h, bool (*close_handle_func)(ADBAPIHANDLE));
 
 /// Closes opened usb handle
-int usb_close(usb_handle* handle);
+int usb_close(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE));
 
 /// Gets interface (device) name for an opened usb handle
 const char *usb_name(usb_handle* handle);
 
 static struct dll_bridge * bridge;
-extern THREAD_LOCAL struct dll_io_bridge * io_bridge;
+extern struct dll_io_bridge * i_bridge;
+extern struct dll_io_bridge * o_bridge;
 
 //#define D_ D
 //#undef D
@@ -293,7 +294,7 @@ int usb_write(usb_handle* handle, const void* data, int len) {
   if (NULL != handle) {
     D("Before bridge->AdbWriteEndpointSync\n");
     // Perform write
-    ret = io_bridge->AdbWriteEndpointSync(handle->adb_write_pipe,
+    ret = i_bridge->AdbWriteEndpointSync(handle->adb_write_pipe,
                                (void*)data,
                                (unsigned long)len,
                                &written,
@@ -307,7 +308,7 @@ int usb_write(usb_handle* handle, const void* data, int len) {
       if (written == (unsigned long)len) {
         if(handle->zero_mask && (len & handle->zero_mask) == 0) {
           // Send a zero length packet
-          io_bridge->AdbWriteEndpointSync(handle->adb_write_pipe,
+          i_bridge->AdbWriteEndpointSync(handle->adb_write_pipe,
                                (void*)data,
                                0,
                                &written,
@@ -318,7 +319,7 @@ int usb_write(usb_handle* handle, const void* data, int len) {
     } else {
       // assume ERROR_INVALID_HANDLE indicates we are disconnected
       if (saved_errno == ERROR_INVALID_HANDLE)
-        usb_kick(handle, io_bridge->AdbCloseHandle);
+        usb_kick(handle, i_bridge->AdbCloseHandle);
     }
     errno = saved_errno;
   } else {
@@ -343,7 +344,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
       int xfer = (len > 4096) ? 4096 : len;
 
       D("Before bridge->AdbReadEndpointSync\n");
-      ret = io_bridge->AdbReadEndpointSync(handle->adb_read_pipe,
+      ret = o_bridge->AdbReadEndpointSync(handle->adb_read_pipe,
                                   (void*)data_,
                                   (unsigned long)xfer,
                                   &read,
@@ -360,7 +361,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
       } else {
         // assume ERROR_INVALID_HANDLE indicates we are disconnected
         if (saved_errno == ERROR_INVALID_HANDLE)
-          usb_kick(handle, io_bridge->AdbCloseHandle);
+          usb_kick(handle, o_bridge->AdbCloseHandle);
         break;
       }
       errno = saved_errno;
@@ -375,17 +376,17 @@ int usb_read(usb_handle *handle, void* data, int len) {
   return -1;
 }
 
-void usb_cleanup_handle(usb_handle* handle) {
+void usb_cleanup_handle(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE), char * tag) {
   if (NULL != handle) {
     D("Called with tag: %s\n", tag);
     if (NULL != handle->interface_name)
       free(handle->interface_name);
     if (NULL != handle->adb_write_pipe)
-      io_bridge->AdbCloseHandle(handle->adb_write_pipe);
+      close_handle_func(handle->adb_write_pipe);
     if (NULL != handle->adb_read_pipe)
-      io_bridge->AdbCloseHandle(handle->adb_read_pipe);
+      close_handle_func(handle->adb_read_pipe);
     if (NULL != handle->adb_interface)
-      io_bridge->AdbCloseHandle(handle->adb_interface);
+      close_handle_func(handle->adb_interface);
 
     handle->interface_name = NULL;
     handle->adb_write_pipe = NULL;
@@ -394,11 +395,11 @@ void usb_cleanup_handle(usb_handle* handle) {
   }
 }
 
-void usb_kick(usb_handle *handle) {
+void usb_kick(usb_handle *handle, bool (*close_handle_func)(ADBAPIHANDLE)) {
   if (NULL != handle) {
     adb_mutex_lock(&usb_lock);
 
-    usb_cleanup_handle(handle);
+    usb_cleanup_handle(handle, close_handle_func, "usb_kick2");
 
     adb_mutex_unlock(&usb_lock);
   } else {
@@ -407,7 +408,7 @@ void usb_kick(usb_handle *handle) {
   }
 }
 
-int usb_close(usb_handle* handle) {
+int usb_close(usb_handle* handle, bool (*close_handle_func)(ADBAPIHANDLE)) {
   D("usb_close\n");
 
   if (NULL != handle) {
@@ -424,7 +425,7 @@ int usb_close(usb_handle* handle) {
     adb_mutex_unlock(&usb_lock);
 
     // Cleanup handle
-    usb_cleanup_handle(handle);
+    usb_cleanup_handle(handle, close_handle_func, "usb_close3");
     free(handle);
   }
 
