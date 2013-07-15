@@ -1,6 +1,8 @@
 # Makefile for adb; from https://heiher.info/2227.html
 # modified again from Ubuntu's android-tools package
 
+ADB_AUTH ?= off
+
 ifeq ($(OS), Windows_NT)
   VS_DEVELOPER_CMD_PATH = vcvars32.bat
   ADB_TARGETS = winlib
