@@ -35,7 +35,7 @@ module.exports = {
                 args: [ ]
               }, libadb);
 
-    if (platform === "darwin") {
+    if (platform === "darwin" || platform === "winnt") {
       I.declare({ name: "kill_device_loop",
                   returns: ctypes.void_t,
                   args: []
@@ -67,9 +67,9 @@ module.exports = {
   },
 
   killDeviceLoop: function killDeviceLoop() {
-    // if we're not on OSX, we don't have to do anything
-    if (platform === "darwin") {
-      // The RunLoopThread might take up to 100ms to close
+    // if we're not on OSX or Windows, we don't have to do anything
+    if (platform === "darwin" || platform === "winnt") {
+      // The RunLoopThread (OSX) might take up to 100ms to close
       I.use("kill_device_loop")();
     }
   },

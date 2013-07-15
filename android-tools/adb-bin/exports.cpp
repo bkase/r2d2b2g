@@ -62,6 +62,11 @@ DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPI
     should_kill_device_loop();
   }
 #endif
+#ifdef WIN32
+  DLL_EXPORT void kill_device_loop() {
+    should_kill_device_loop();
+  }
+#endif
 
   DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)) {
     kill_io_pump(t, close_handle_func);

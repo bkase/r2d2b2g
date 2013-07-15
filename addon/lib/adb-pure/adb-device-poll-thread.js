@@ -88,15 +88,12 @@ worker.once("init", function({ libPath, driversPath, platform }) {
               }, libadb);
 
     I.use("usb_monitor")(bridge.address());
+    libadbdrivers.close();
   } else {
     throw "Unknown platform : " + platform
   }
-});
-
-worker.listen("cleanup", function() {
-  debug("Cleaning up");
   if (libadb) {
     libadb.close();
   }
+  debug("Cleaned up");
 });
-

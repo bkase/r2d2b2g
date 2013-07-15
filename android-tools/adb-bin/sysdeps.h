@@ -46,6 +46,7 @@
 #define __inline__ __inline
 
 typedef CRITICAL_SECTION          adb_mutex_t;
+typedef CONDITION_VARIABLE        adb_cond_t;
 
 #define  ADB_MUTEX_DEFINE(x)     adb_mutex_t   x
 
@@ -66,6 +67,16 @@ static __inline__ void adb_mutex_lock( adb_mutex_t*  lock )
 static __inline__ void  adb_mutex_unlock( adb_mutex_t*  lock )
 {
     LeaveCriticalSection( lock );
+}
+
+static __inline__ void adb_cond_wait( adb_cond_t * condition, adb_mutex_t * mutex )
+{
+    SleepConditionVariableCS(condition, mutex, INFINITE);
+}
+
+static __inline__ void adb_cond_broadcast( adb_cond_t * condition )
+{
+    WakeAllConditionVariable(condition);
 }
 
 typedef struct { unsigned  tid; }  adb_thread_t;

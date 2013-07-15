@@ -43,6 +43,11 @@
 #define AdbCloseHandle(...) (false)
 #endif
 
+#define D_ D
+#undef D
+#define D printf
+
+
 /** Structure usb_handle describes our connection to the usb device via
   AdbWinApi.dll. This structure is returned from usb_open() routine and
   is expected in each subsequent call that is accessing the device.
@@ -78,6 +83,12 @@ static usb_handle handle_list = {
   /* .prev = */ &handle_list,
   /* .next = */ &handle_list,
 };
+
+/// Locker for the should_kill_cond wait
+ADB_MUTEX_DEFINE( should_kill_cond_lock );
+
+/// Locker for the should_kill signal
+ADB_MUTEX_DEFINE( should_kill_lock );
 
 /// Locker for the list of opened usb handles
 ADB_MUTEX_DEFINE( usb_lock );
@@ -190,14 +201,56 @@ int register_new_device(usb_handle* handle) {
   return 1;
 }
 
+static int should_kill = 0;
+static adb_cond_t should_kill_cond;
+static void set_should_kill(int val) {
+  adb_mutex_lock(&should_kill_lock);
+  D("Set should_kill to %d\n", val);
+  should_kill = val;
+  adb_mutex_unlock(&should_kill_lock);
+}
+
+static int get_should_kill() {
+  adb_mutex_lock(&should_kill_lock);
+  int tmp = should_kill;
+  adb_mutex_unlock(&should_kill_lock);
+  return tmp;
+}
+
+void should_kill_device_loop() {
+  set_should_kill(1);
+
+  adb_mutex_lock(&should_kill_cond_lock);
+  while(should_kill != 2) {
+    // hang on a condition
+    adb_cond_wait(&should_kill_cond, &should_kill_cond_lock);
+  }
+  adb_mutex_unlock(&should_kill_cond_lock);
+  D("device_poll_thread should be shutdown\n");
+}
 
 void* device_poll_thread(void* _bridge) {
   bridge = (struct dll_bridge *)_bridge;
   D("Created device thread\n");
 
+  int i = 0;
   while(1) {
-    find_devices();
-    adb_sleep_ms(1000);
+    if (get_should_kill()) {
+      D("Cleaning in timer handler\n");
+      set_should_kill(2);
+      adb_cond_broadcast(&should_kill_cond);
+      return NULL;
+    }
+
+    if(i % 10 == 0) {
+      D("In the if-statement");
+      find_devices();
+      i = 1;
+    } else {
+      i++;
+    }
+
+    adb_sleep_ms(100);
   }
 
   return NULL;
@@ -546,5 +599,5 @@ void find_devices() {
   
 }
 
-//#undef D
-//#define D D_
+#undef D
+#define D D_
