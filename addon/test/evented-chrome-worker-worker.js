@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const URL_PREFIX = self.location.href.replace(/evented\-chrome\-worker\-worker.js/, "");
-const EVENTED_CHROME_WORKER = URL_PREFIX + "../lib/adb-pure/evented-chrome-worker.js";
+const EVENTED_CHROME_WORKER = URL_PREFIX + "../lib/adb/evented-chrome-worker.js";
 
 importScripts(EVENTED_CHROME_WORKER);
 

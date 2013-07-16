@@ -10,7 +10,7 @@
 'use strict';
 
 const { Cu, Cc, Ci } = require("chrome");
-const { AdbSocket } = require("adb-pure/adb-socket");
+const { AdbSocket } = require("adb/adb-socket");
 
 Cu.import("resource://gre/modules/Services.jsm");
 

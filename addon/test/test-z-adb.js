@@ -1,4 +1,4 @@
-const ADB = require("adb-pure/adb-pure");
+const ADB = require("adb/adb");
 const Timer = require("timer");
 const Promise = require("sdk/core/promise");
 const { Cu, Ci } = require("chrome");

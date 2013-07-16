@@ -11,7 +11,7 @@
 
 const { Cc, Ci, Cr, Cu } = require("chrome");
 const { Class } = require("sdk/core/heritage");
-const client = require("adb-pure/adb-client");
+const client = require("adb/adb-client");
 
 Cu.import("resource://gre/modules/Services.jsm");
 

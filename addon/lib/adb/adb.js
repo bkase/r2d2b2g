@@ -5,28 +5,28 @@
 'use strict';
 
 /* Fake require statements so that the module dependency graph has web workers
-  require("adb-pure/adb-server-thread.js");
-  require("adb-pure/adb-io-thread.js");
-  require("adb-pure/adb-utility-thread.js");
-  require("adb-pure/adb-device-poll-thread.js");
-  require("adb-pure/adb-io-thread-spawner.js");
-  require("adb-pure/ctypes-bridge-builder.js");
-  require("adb-pure/worker-console.js");
+  require("adb/adb-server-thread.js");
+  require("adb/adb-io-thread.js");
+  require("adb/adb-utility-thread.js");
+  require("adb/adb-device-poll-thread.js");
+  require("adb/adb-io-thread-spawner.js");
+  require("adb/ctypes-bridge-builder.js");
+  require("adb/worker-console.js");
  */
 
 const { Cc, Ci, Cr, Cu, ChromeWorker } = require("chrome");
 const Promise = require("sdk/core/promise");
 
-const URL_PREFIX = module.uri.replace(/adb\-pure\.js/, "");
+const URL_PREFIX = module.uri.replace(/adb\.js/, "");
 const WORKER_URL_SERVER = URL_PREFIX + "adb-server-thread.js";
 const WORKER_URL_IO = URL_PREFIX + "adb-io-thread.js";
 const WORKER_URL_UTIL = URL_PREFIX + "adb-utility-thread.js";
 
-const EventedChromeWorker = require("adb-pure/evented-chrome-worker").EventedChromeWorker;
-const deviceTracker = require("adb-pure/adb-device-tracker");
-const fileTransfer = require("adb-pure/adb-file-transfer");
-const commandRunner = require("adb-pure/adb-command-runner");
-const blockingNative = require("adb-pure/adb-blocking-native");
+const EventedChromeWorker = require("adb/evented-chrome-worker").EventedChromeWorker;
+const deviceTracker = require("adb/adb-device-tracker");
+const fileTransfer = require("adb/adb-file-transfer");
+const commandRunner = require("adb/adb-command-runner");
+const blockingNative = require("adb/adb-blocking-native");
 const timers = require("timers");
 const URL = require("url");
 const env = require("api-utils/environment").env;

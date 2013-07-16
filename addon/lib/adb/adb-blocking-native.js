@@ -8,10 +8,10 @@ const { Cu } = require("chrome");
 Cu.import("resource://gre/modules/ctypes.jsm");
 const { platform } = require("system");
 
-const { Instantiator } = require("adb-pure/ctypes-instantiator");
+const { Instantiator } = require("adb/ctypes-instantiator");
 const { unpackPtr, atransport, AdbCloseHandleType, NULL, CallbackType } =
-    require("adb-pure/adb-types");
-const { ioUtils } = require("adb-pure/io-utils");
+    require("adb/adb-types");
+const { ioUtils } = require("adb/io-utils");
 
 function debug() {
   console.log.apply(console, ["AdbBlockingNative: "].concat(Array.prototype.slice.call(arguments, 0)));
