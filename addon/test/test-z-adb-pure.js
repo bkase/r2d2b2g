@@ -1,13 +1,11 @@
-const adb = require("adb-pure/adb-pure");
-const timer = require("timer");
+const ADB = require("adb-pure/adb-pure");
+const Timer = require("timer");
 const Promise = require("sdk/core/promise");
 const { Cu, Ci } = require("chrome");
-/* const OS = */ Cu.import("resource://gre/modules/osfile.jsm");
-const { rootURI: ROOT_URI } = require('@loader/options');
-const TEST_URI = ROOT_URI + "resources/r2d2b2g/tests/";
-const URL = require("url");
+const { OS } = Cu.import("resource://gre/modules/osfile.jsm", {});
 
-const file = require("sdk/io/file");
+const File = require("sdk/io/file");
+const TEMP_DIR = require("sdk/system").pathFor('TmpD');
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -21,14 +19,11 @@ let observer = {
     console.log("simulator.observe: " + topic);
     switch (topic) {
       case "adb-ready":
-        console.log("Observed!");
         break;
       case "adb-device-connected":
-        console.log("Observed!");
         isPhonePluggedIn = true;
         break;
       case "adb-device-disconnected":
-        console.log("Observed!");
         isPhonePluggedIn = false;
         break;
     }
@@ -39,7 +34,7 @@ Services.obs.addObserver(observer, "adb-device-connected", true);
 Services.obs.addObserver(observer, "adb-device-disconnected", true);
 
 // Before all
-adb._startAdbInBackground();
+ADB._startAdbInBackground();
 
 function dumpBanner(msg) {
   let starCount = msg.length + 8;
@@ -59,7 +54,7 @@ function dumpBanner(msg) {
 }
 
 function waitUntil(trigger, andThen) {
-  timer.setTimeout(function() {
+  Timer.setTimeout(function() {
     if (!trigger()) {
       waitUntil(trigger, andThen);
     } else {
@@ -70,15 +65,14 @@ function waitUntil(trigger, andThen) {
 
 exports["test a list devices"] = function(assert, done) {
   // Give adb 2 seconds to startup
-  timer.setTimeout(function listDevices() {
-    adb.listDevices().then(
+  Timer.setTimeout(function listDevices() {
+    ADB.listDevices().then(
       function success(e) {
         if (e[0]) {
           let [, status] = e[0];
           if (status === "offline") {
             isPhonePluggedIn = false;
-            dumpBanner("DEVICE OFFLINE");
-            assert.fail("device is offline");
+            assert.fail("Device is offline");
             done();
             return;
           }
@@ -86,11 +80,11 @@ exports["test a list devices"] = function(assert, done) {
 
         if (isPhonePluggedIn) {
           assert.pass("Devices: " + JSON.stringify(e));
-          dumpBanner("DEVICE IS PLUGGED IN");
+          console.log("Device is plugged in");
           done();
         } else {
           assert.pass("Devices: " + JSON.stringify(e));
-          dumpBanner("DEVICE IS NOT PLUGGED IN");
+          console.log("Device is not plugged in");
           done();
         }
       },
@@ -109,13 +103,13 @@ exports["test b adb.shell, no phone"] = function (assert, done) {
   }
 
   let command = "ls";
-  adb.shell(command).then(
+  ADB.shell(command).then(
       function success(output) {
         assert.fail("Should reject promise when phone unplugged");
         done();
       },
       function fail(e) {
-        assert.ok(e, adb.DEVICE_NOT_CONNECTED, "Error wasn't DEVICE_NOT_CONNECTED");
+        assert.ok(e, ADB.DEVICE_NOT_CONNECTED, "Error wasn't DEVICE_NOT_CONNECTED");
         done();
       });
 };
@@ -128,20 +122,22 @@ exports["test c adb push, no phone"] = function (assert, done) {
   }
 
   let str = "astring" + Math.random();
-  let filename = "no-test.txt";
-  let pathToFile = URL.toFilename(TEST_URI + "/" + filename);
-  let writer = file.open(pathToFile, "w");
+  let filename = "test.txt";
+  let pathToFile = File.join(TEMP_DIR, filename);
+  let writer = File.open(pathToFile, "w");
   writer.write(str);
   writer.close();
 
-  adb.pushFile(pathToFile,
+  ADB.pushFile(pathToFile,
                "/sdcard/test.txt").then(
     function success(e) {
       assert.fail("Should reject promise when phone unplugged");
+      File.remove(pathToFile);
       done();
     },
     function fail(e) {
-      assert.ok(e, adb.DEVICE_NOT_CONNECTED, "Error wasn't DEVICE_NOT_CONNECTED");
+      assert.ok(e, ADB.DEVICE_NOT_CONNECTED, "Error wasn't DEVICE_NOT_CONNECTED");
+      File.remove(pathToFile);
       done();
     });
 };
@@ -155,7 +151,7 @@ exports["test d adb shell, with phone"] = function (assert, done) {
 
   let command = "ls";
   console.log("Running adb shell");
-  adb.shell(command).then(
+  ADB.shell(command).then(
     function success(output) {
       assert.ok(output.split('\n').length > 7, "Recieved `ls` output");
       done();
@@ -174,28 +170,31 @@ exports["test e adb push, with phone"] = function (assert, done) {
   }
 
   let str = "astring" + Math.random();
-  let filename = "no-test.txt";
-  let pathToFile = URL.toFilename(TEST_URI + "/" + filename);
-  let writer = file.open(pathToFile, "w");
+  let filename = "test.txt";
+  let pathToFile = File.join(TEMP_DIR, filename);
+  let writer = File.open(pathToFile, "w");
   writer.write(str);
   writer.close();
 
-  adb.pushFile(pathToFile,
+  ADB.pushFile(pathToFile,
                "/sdcard/test.txt").then(
     function success(e) {
-      adb.shell("cat /sdcard/test.txt").then(
+      ADB.shell("cat /sdcard/test.txt").then(
         function success(e) {
           assert.equal(e, str, "Contents of file on host: " + e + " should be same on device: " + str);
+          File.remove(pathToFile);
           done();
         },
         function fail(e) {
           console.log("Error: " + e);
           assert.fail("Error catting");
+          File.remove(pathToFile);
           done();
         });
     },
     function fail(e) {
       assert.fail("Error pushing: " + e);
+      File.remove(pathToFile);
       done();
     });
 };
@@ -224,7 +223,7 @@ exports["test f device tracking, with phone"] = function(assert, done) {
 */
 
 exports["test zz after"] = function(assert, done) {
-  adb.close();
+  ADB.close();
   assert.pass("Done!");
   done();
 };
