@@ -1960,6 +1960,17 @@ void fdevent_js_die_setup(int js_die_fd) {
     printf("Added FDE");
 }
 
+ADB_MUTEX_DEFINE( die_fdevent_lock );
+adb_cond_t die_fdevent_cond;
+
+void should_die_fdevent_() {
+    adb_mutex_lock( &die_fdevent_lock );
+    while (SHOULD_DIE != 2) {
+        adb_cond_wait( &die_fdevent_cond, &die_fdevent_lock );
+    }
+    adb_mutex_unlock( &die_fdevent_lock );
+}
+
 void fdevent_loop(int exit_fd)
 {
     fdevent *fde;
@@ -1978,7 +1989,9 @@ void fdevent_loop(int exit_fd)
             dump_fde(fde, "callback");
             fde->func(fde->fd, events, fde->arg);
             if (SHOULD_DIE) {
-              printf("Exiting loop\n");
+              printf("Exiting fdevent loop in sysdeps_win32\n");
+              SHOULD_DIE = 2;
+              adb_cond_broadcast( &die_fdevent_cond );
               return;
             }
         }

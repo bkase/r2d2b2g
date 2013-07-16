@@ -244,6 +244,8 @@ exports = module.exports = {
     // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
     let res = blockingNative.writeFully(server_die_fd, "ctypes.int(0xDEAD)", 4);
     debug("Finished writing to die_fd ret=" + JSON.stringify(res));
+    blockingNative.waitForServerDeath();
+    debug("Done waiting for server death");
     blockingNative.cleanupNativeCode();
     context.__workers.forEach(function(w) {
       debug("Killing Worker: " + w.tag)

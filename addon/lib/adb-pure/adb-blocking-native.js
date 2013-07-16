@@ -49,6 +49,11 @@ module.exports = {
                   returns: AdbCloseHandleType.returnType,
                   args: AdbCloseHandleType.argTypes
                 }, libadbdrivers);
+
+      I.declare({ name: "should_die_fdevent",
+                  returns: ctypes.void_t,
+                  args: [],
+                }, libadb);
     }
 
     I.declare({ name: "on_kill_io_pump",
@@ -71,6 +76,12 @@ module.exports = {
     if (platform === "darwin" || platform === "winnt") {
       // The RunLoopThread (OSX) might take up to 100ms to close
       I.use("kill_device_loop")();
+    }
+  },
+
+  waitForServerDeath: function waitForServerDeath() {
+    if (platform === "winnt") {
+      I.use("should_die_fdevent")();
     }
   },
 

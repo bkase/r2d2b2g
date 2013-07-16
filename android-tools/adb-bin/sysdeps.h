@@ -227,6 +227,8 @@ void     fdevent_add(fdevent *fde, unsigned events);
 void     fdevent_del(fdevent *fde, unsigned events);
 void     fdevent_loop(int exit_fd);
 
+void     should_die_fdevent_();
+
 struct fdevent {
     fdevent *next;
     fdevent *prev;

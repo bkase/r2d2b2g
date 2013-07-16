@@ -49,6 +49,10 @@ FILE* debugLog;
 FILE* LOG_FILE;
 #endif
 
+#define D_ D
+#undef D
+#define D printf
+
 THREAD_LOCAL void (*restart_me)();
 int HOST = 0;
 int gListenAll = 0;
@@ -1253,6 +1257,7 @@ void * server_thread(void * args) {
 
     D("Starting event loop...\n");
     fdevent_loop(exit_fd);
+    D("Done with loop\n");
 
     for (int i = 0; i < _fds->length; i++) {
       D("Closing fd: %d at index: %d\n", _fds->base[i], i);
@@ -1627,3 +1632,7 @@ int main(int argc, char **argv)
     // return adb_commandline(argc - 1, argv + 1);
     return 0;
 }
+
+
+#undef D
+#define D D_

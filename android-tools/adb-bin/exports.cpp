@@ -141,3 +141,9 @@ DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPI
     return 0;
   }
 
+  DLL_EXPORT void should_die_fdevent() {
+    #ifdef WIN32
+      should_die_fdevent_();
+    #endif
+  }
+
