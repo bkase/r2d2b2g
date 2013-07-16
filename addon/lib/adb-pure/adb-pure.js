@@ -71,6 +71,7 @@ const DEVICE_NOT_CONNECTED = "Device not connected";
 exports.DEVICE_NOT_CONNECTED = DEVICE_NOT_CONNECTED;
 
 let server_die_fd = null;
+let hasStartedShutdown = false;
 
 let ready = false;
 let didRunInitially = false;
@@ -226,6 +227,10 @@ exports = module.exports = {
   },
 
   close: function close() {
+    if (hasStartedShutdown) {
+      return;
+    }
+    hasStartedShutdown = true;
     let t0 = Date.now();
     debug("Closing - ");
     let x = 1;
@@ -284,6 +289,7 @@ exports.restart = function restart() {
 restart_helper();
 
 exports._startAdbInBackground = function startAdbInBackground() {
+  hasStartedShutdown = false;
   this.ready = true;
 
   // catch the exception that is thrown when the shared library cannot be loaded

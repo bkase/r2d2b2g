@@ -52,8 +52,6 @@ let deviceConnected, adbReady, debuggerReady;
 let gCurrentConnection, gCurrentToolbox, gCurrentToolboxManifestURL;
 let gRunningApps = [];
 
-let hasStartedShutdown = false;
-
 let simulator = module.exports = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
@@ -70,10 +68,9 @@ let simulator = module.exports = {
     this.kill();
 
 
-    // make sure we only shutdown ADB once and we only shut it down when the
+    // make sure we only shutdown ADB when the
     // actual onUnload event fires (the `&& reason`)
-    if (ADB.didRunInitially && !hasStartedShutdown && reason) {
-      hasStartedShutdown = true;
+    if (ADB.didRunInitially && reason) {
       ADB.close();
     }
 
