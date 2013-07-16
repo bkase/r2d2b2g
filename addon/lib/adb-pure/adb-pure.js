@@ -71,7 +71,10 @@ const DEVICE_NOT_CONNECTED = "Device not connected";
 exports.DEVICE_NOT_CONNECTED = DEVICE_NOT_CONNECTED;
 
 let server_die_fd = null;
+// make sure to only start shutting down if we haven't started a shutdown
 let hasStartedShutdown = false;
+// only restart once on fatal error to prevent infinite restart loop
+let hasRestarted = false;
 
 let ready = false;
 let didRunInitially = false;
@@ -266,25 +269,35 @@ function restart_helper() {
   context.restart = exports.restart;
 }
 
+function reset() {
+  server_die_fd = null;
+  context = { __workers: [], // this array is populated automatically by EventedChromeWorker
+              platform: platform,
+              driversPath: driversPath,
+              libPath: libPath
+            };
+  restart_helper();
+
+  deviceTracker.reset();
+  fileTransfer.reset();
+  commandRunner.reset();
+  blockingNative.reset();
+}
+
 exports.restart = function restart() {
   exports.close();
 
-  timers.setTimeout(function timeout() {
-    server_die_fd = null;
-    context = { __workers: [], // this array is populated automatically by EventedChromeWorker
-                platform: platform,
-                driversPath: driversPath,
-                libPath: libPath
-              };
-    restart_helper();
-
-    deviceTracker.reset();
-    fileTransfer.reset();
-    commandRunner.reset();
-    blockingNative.reset();
-
-    exports._startAdbInBackground();
-  }, 200);
+  if (!hasRestarted) {
+    debug("ADB is restarting");
+    timers.setTimeout(function timeout() {
+      reset();
+      hasRestarted = true;
+      exports._startAdbInBackground();
+    }, 200);
+  } else {
+    console.log("ADB fatally died!");
+    Services.obs.notifyObservers(null, "adb-fatal-death", null);
+  }
 };
 restart_helper();
 
