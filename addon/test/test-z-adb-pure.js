@@ -77,10 +77,9 @@ exports["test a list devices"] = function(assert, done) {
           let [, status] = e[0];
           if (status === "offline") {
             isPhonePluggedIn = false;
-            dumpBanner("DEVICE OFFLINE, RECONNECT TO CONTINUE");
-            waitUntil(function() isPhonePluggedIn, function andThen() {
-              listDevices();
-            });
+            dumpBanner("DEVICE OFFLINE");
+            assert.fail("device is offline");
+            done();
             return;
           }
         }
@@ -201,6 +200,9 @@ exports["test e adb push, with phone"] = function (assert, done) {
     });
 };
 
+// Uncomment to test proper disconnecting and connecting of devices
+// Requires manual intervention
+/*
 exports["test f device tracking, with phone"] = function(assert, done) {
   if (!isPhonePluggedIn) {
     assert.pass("Skipping test");
@@ -219,6 +221,7 @@ exports["test f device tracking, with phone"] = function(assert, done) {
     });
   });
 };
+*/
 
 exports["test zz after"] = function(assert, done) {
   adb.close();
