@@ -100,7 +100,11 @@ static int remote_write(apacket *p, atransport *t)
 
 static void remote_close(atransport *t)
 {
+#ifdef WIN32
+    usb_close(t->usb, t->close_handle_func);
+#else
     usb_close(t->usb);
+#endif
     t->usb = 0;
 }
 

@@ -9,12 +9,9 @@ Cu.import("resource://gre/modules/ctypes.jsm");
 const { platform } = require("system");
 
 const { Instantiator } = require("adb/ctypes-instantiator");
-const { unpackPtr, atransport, AdbCloseHandleType, NULL, CallbackType,
-        AdbReadEndpointAsyncType, AdbWriteEndpointAsyncType,
-        AdbReadEndpointSyncType, AdbWriteEndpointSyncType } =
+const { unpackPtr, atransport, AdbCloseHandleType, NULL, CallbackType } =
     require("adb/adb-types");
 const { ioUtils } = require("adb/io-utils");
-const { BridgeBuilder } = require("adb/ctypes-bridge-builder");
 
 function debug() {
   console.log.apply(console, ["AdbBlockingNative: "].concat(Array.prototype.slice.call(arguments, 0)));
@@ -67,7 +64,7 @@ module.exports = {
       let install_thread_locals =
         I.declare({ name: "install_thread_locals",
                     returns: ctypes.void_t,
-                    args: [ ctypes.void_t.ptr, struct_dll_io_bridge.ptr ]
+                    args: [ CallbackType.ptr, struct_dll_io_bridge.ptr ]
                   }, libadb);
 
       install_thread_locals(NULL, io_bridge.address());
@@ -85,7 +82,7 @@ module.exports = {
 
     I.declare({ name: "on_kill_io_pump",
                 returns: ctypes.void_t,
-                args: [ atransport.ptr ]
+                args: [ atransport.ptr, AdbCloseHandleType.ptr ]
               }, libadb);
   },
 
@@ -114,8 +111,20 @@ module.exports = {
 
   killIOPump: function killIOPump(t_ptrS) {
     let t_ptr = unpackPtr(t_ptrS, atransport.ptr);
+    let close_handle_func;
+    if (platform === "winnt") {
+      let bridge = function close_bridge() {
+        let f = I.use("AdbCloseHandle");
+        // call the real DLL function with the arguments to the bridge call
+        return f.apply(f, arguments);
+      };
+      close_handle_func = AdbCloseHandleType.ptr(bridge);
+    } else {
+      close_handle_func = ctypes.cast(NULL, AdbCloseHandleType.ptr);
+    }
+
     let onKillIOPump = I.use("on_kill_io_pump");
-    onKillIOPump.apply(onKillIOPump, [t_ptr]);
+    onKillIOPump.apply(onKillIOPump, [t_ptr, close_handle_func]);
   },
 
   writeFully: function writeFully(fd, toWriteS, length) {

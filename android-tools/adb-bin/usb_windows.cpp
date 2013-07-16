@@ -324,7 +324,7 @@ usb_handle* do_usb_open(const wchar_t* interface_name) {
 
   // Something went wrong.
   int saved_errno = GetLastError();
-  usb_cleanup_handle(ret);
+  usb_cleanup_handle(ret, bridge->AdbCloseHandle, "bridge1");
   free(ret);
   SetLastError(saved_errno);
 
@@ -365,7 +365,7 @@ int usb_write(usb_handle* handle, const void* data, int len) {
     } else {
       // assume ERROR_INVALID_HANDLE indicates we are disconnected
       if (saved_errno == ERROR_INVALID_HANDLE)
-        usb_kick(handle);
+        usb_kick(handle, io_bridge->AdbCloseHandle);
     }
     errno = saved_errno;
   } else {
@@ -407,7 +407,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
       } else {
         // assume ERROR_INVALID_HANDLE indicates we are disconnected
         if (saved_errno == ERROR_INVALID_HANDLE)
-          usb_kick(handle);
+          usb_kick(handle, io_bridge->AdbCloseHandle);
         break;
       }
       errno = saved_errno;
@@ -424,7 +424,7 @@ int usb_read(usb_handle *handle, void* data, int len) {
 
 void usb_cleanup_handle(usb_handle* handle) {
   if (NULL != handle) {
-    D("Called usb_cleanup_handle");
+    D("Called with tag: %s\n", tag);
     if (NULL != handle->interface_name)
       free(handle->interface_name);
     if (NULL != handle->adb_write_pipe)
@@ -576,16 +576,16 @@ void find_devices() {
               register_usb_transport(handle, serial_number, NULL, 1);
             } else {
               D("register_new_device failed for %s\n", interf_name);
-              usb_cleanup_handle(handle);
+              usb_cleanup_handle(handle, bridge->AdbCloseHandle, "bridge4");
               free(handle);
             }
           } else {
             D("cannot get serial number\n");
-            usb_cleanup_handle(handle);
+            usb_cleanup_handle(handle, bridge->AdbCloseHandle, "bridge5");
             free(handle);
           }
         } else {
-          usb_cleanup_handle(handle);
+          usb_cleanup_handle(handle, bridge->AdbCloseHandle, "bridge6");
           free(handle);
         }
       }

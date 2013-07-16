@@ -19,7 +19,7 @@ DLL_EXPORT void * malloc_(int size);
 DLL_EXPORT int connect_service(const char * service);
 DLL_EXPORT int read_fd(int fd, char * buffer, int size);
 
-DLL_EXPORT void install_thread_locals(void (*restart_me)(), struct dll_io_bridge *);
+DLL_EXPORT void install_thread_locals(void (*restart_me)());
 DLL_EXPORT void array_lists_init();
 
 DLL_EXPORT int main_server(struct adb_main_input * input_args);
@@ -32,6 +32,8 @@ void DLL_EXPORT kill_device_loop();
 DLL_EXPORT int usb_monitor(struct dll_bridge * bridge);
 
 DLL_EXPORT void on_kill_io_pump(atransport * t);
+DLL_EXPORT void install_thread_locals(void (*restart_me)(), struct dll_io_bridge *);
+DLL_EXPORT void array_lists_init();
 
   DLL_EXPORT void install_thread_locals(void (*restart_me)(), struct dll_io_bridge * io_bridge) {
     install_thread_locals_(restart_me, io_bridge);
