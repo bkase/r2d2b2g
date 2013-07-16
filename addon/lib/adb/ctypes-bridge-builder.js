@@ -11,7 +11,12 @@
 
 'use strict';
 
-;(function(exports) {
+;(function(exports, module) {
+
+  if (module) {
+    const { Cu } = require("chrome");
+    Cu.import("resource://gre/modules/ctypes.jsm");
+  }
 
   function BridgeBuilder(Instantiator, lib) {
     this.I = Instantiator;
@@ -73,4 +78,4 @@
 
 }).apply(null,
   typeof module !== 'undefined' ?
-       [exports] : [this]);
+       [exports, module] : [this]);
