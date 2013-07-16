@@ -36,10 +36,10 @@ worker.once("init", function({ libPath, driversPath, platform }) {
   let install_thread_locals =
       I.declare({ name: "install_thread_locals",
                   returns: ctypes.void_t,
-                  args: [ CallbackType.ptr, ctypes.void_t.ptr ]
+                  args: [ CallbackType.ptr ]
                 }, libadb);
 
-  install_thread_locals(CallbackType.ptr(restartMeFn), NULL);
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 
   // on Linux, fallback to pthreads here
   if (platform === "linux") {
