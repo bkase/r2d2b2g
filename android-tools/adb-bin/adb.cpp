@@ -53,9 +53,7 @@ FILE* LOG_FILE;
 #undef D
 #define D printf
 
-THREAD_LOCAL void (*restart_me)() = NULL;
-THREAD_LOCAL struct dll_io_bridge * io_bridge = NULL;
-
+THREAD_LOCAL void (*restart_me)();
 int HOST = 0;
 int gListenAll = 0;
 
@@ -175,9 +173,8 @@ void cleanup_all() {
 #endif
 }
 
-void install_thread_locals_(void (*restart_me_)(), struct dll_io_bridge * io_bridge_) {
+void install_thread_locals_(void (*restart_me_)()) {
   restart_me = restart_me_;
-  io_bridge = io_bridge_;
 }
 
 void fatal(const char *fmt, ...)

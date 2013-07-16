@@ -59,10 +59,10 @@ worker.once("init", function({ libPath }) {
   let install_thread_locals =
       I.declare({ name: "install_thread_locals",
                   returns: ctypes.void_t,
-                  args: [ CallbackType.ptr, ctypes.void_t.ptr ]
+                  args: [ CallbackType.ptr ]
                 }, libadb);
 
-  install_thread_locals(CallbackType.ptr(restartMeFn), NULL);
+  install_thread_locals(CallbackType.ptr(restartMeFn));
 });
 
 worker.once("start", function({ port }) {
