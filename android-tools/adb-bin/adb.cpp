@@ -49,9 +49,9 @@ FILE* debugLog;
 FILE* LOG_FILE;
 #endif
 
-#define D_ D
-#undef D
-#define D printf
+//#define D_ D
+//#undef D
+//#define D printf
 
 THREAD_LOCAL void (*restart_me)();
 THREAD_LOCAL int (*getLastError)();
@@ -1639,5 +1639,5 @@ int main(int argc, char **argv)
 }
 
 
-#undef D
-#define D D_
+//#undef D
+//#define D D_
