@@ -201,6 +201,7 @@ int register_new_device(usb_handle* handle) {
   return 1;
 }
 
+
 static int should_kill = 0;
 static adb_cond_t should_kill_cond;
 static void set_should_kill(int val) {
@@ -217,11 +218,27 @@ static int get_should_kill() {
   return tmp;
 }
 
-void should_kill_device_loop() {
+void notify_should_kill(int k, char who) {
+  if (k < 0) {
+    k = get_should_kill();
+    if (k == 0) {
+      return;
+    }
+  }
+
+  set_should_kill(k+1);
+  adb_cond_broadcast(&should_kill_cond);
+}
+
+// signals the device_loop and device_output_thread
+void should_kill_threads() {
   set_should_kill(1);
 
   adb_mutex_lock(&should_kill_cond_lock);
-  while(should_kill != 2) {
+  // wait for both the device loop's and the input_thread's death (if it exists)
+  int is_io_pump_on = get_io_pump_status();
+  D("Waiting for %d notifications\n", 2 + is_io_pump_on - 1);
+  while(should_kill < (2 + is_io_pump_on)) {
     // hang on a condition
     adb_cond_wait(&should_kill_cond, &should_kill_cond_lock);
   }
@@ -235,10 +252,10 @@ void* device_poll_thread(void* _bridge) {
 
   int i = 0;
   while(1) {
-    if (get_should_kill()) {
+    int k = get_should_kill();
+    if (k) {
       D("Cleaning in timer handler\n");
-      set_should_kill(2);
-      adb_cond_broadcast(&should_kill_cond);
+      notify_should_kill(k, 'D');
       return NULL;
     }
 
@@ -379,8 +396,9 @@ int usb_write(usb_handle* handle, const void* data, int len) {
   return -1;
 }
 
+extern THREAD_LOCAL int (*getLastError)();
 int usb_read(usb_handle *handle, void* data, int len) {
-  unsigned long time_out = 0;
+  unsigned long time_out = 100;
   unsigned long read = 0;
   int ret;
   char * data_ = (char *)data;
@@ -390,15 +408,23 @@ int usb_read(usb_handle *handle, void* data, int len) {
     while (len > 0) {
       int xfer = (len > 4096) ? 4096 : len;
 
-      D("Before bridge->AdbReadEndpointSync\n");
-      ret = o_bridge->AdbReadEndpointSync(handle->adb_read_pipe,
-                                  (void*)data_,
-                                  (unsigned long)xfer,
-                                  &read,
-                                  time_out);
-      D("After bridge->AdbReadEndpointSync\n");
-      int saved_errno = GetLastError();
-      D("usb_write got: %ld, expected: %d, errno: %d\n", read, xfer, saved_errno);
+      // loop until there is a byte
+      int saved_errno = 0;
+      do {
+        ret = o_bridge->AdbReadEndpointSync(handle->adb_read_pipe,
+                                    (void*)data_,
+                                    (unsigned long)xfer,
+                                    &read,
+                                    time_out);
+        saved_errno = getLastError();
+        D("usb_read got: %ld, expected: %d, errno: %d, ret: %d\n", read, xfer, saved_errno, ret);
+        int k = get_should_kill();
+        if (k) {
+          return -1;
+          // the input thread will notify_should_kill
+        }
+      } while(saved_errno == 121);
+
       if (ret) {
         data_ += read;
         len -= read;
@@ -406,9 +432,11 @@ int usb_read(usb_handle *handle, void* data, int len) {
         if (len == 0)
           return 0;
       } else {
+        // NOTE: This is commented out because for a while saved_errno
+        //       was always zero and everything worked smoothly
         // assume ERROR_INVALID_HANDLE indicates we are disconnected
-        if (saved_errno == ERROR_INVALID_HANDLE)
-          usb_kick(handle, o_bridge->AdbCloseHandle);
+        //if (saved_errno == ERROR_INVALID_HANDLE)
+        //  usb_kick(handle, o_bridge->AdbCloseHandle);
         break;
       }
       errno = saved_errno;

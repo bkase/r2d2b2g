@@ -16,6 +16,7 @@
   function BridgeBuilder(Instantiator, lib) {
     this.I = Instantiator;
     this.lib = lib;
+    this.saved_errno = -1;
   }
   BridgeBuilder.prototype = {
     // returns [StructType, Struct, ref]
@@ -58,7 +59,9 @@
             // get a reference to the actual DLL call
             let f = this.I.use(k);
             // call the real DLL function with the arguments to the bridge call
-            return f.apply(f, arguments);
+            let res = f.apply(f, arguments);
+            this.saved_errno = ctypes.winLastError;
+            return res;
           }).bind(this);
           // install this callback in the bridge struct
           bridge[k] = bridge_funcs[i][k].ptr(ref[k]);
@@ -66,6 +69,10 @@
       }).bind(this));
       
       return [bridge, ref];
+    },
+
+    getLastError: function getLastError() {
+      return this.saved_errno;
     }
   };
 

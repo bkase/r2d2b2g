@@ -36,6 +36,10 @@ DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPI
     install_thread_locals_(restart_me);
   }
 
+  DLL_EXPORT void install_getLastError(int (*getLastError)()) {
+    install_getLastError_(getLastError);
+  }
+
   DLL_EXPORT void array_lists_init() {
     array_lists_init_();
   }
@@ -58,13 +62,13 @@ DLL_EXPORT void on_kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPI
   }
 
 #ifdef __APPLE__
-  DLL_EXPORT void kill_device_loop() {
+  DLL_EXPORT void kill_threads() {
     should_kill_device_loop();
   }
 #endif
 #ifdef WIN32
-  DLL_EXPORT void kill_device_loop() {
-    should_kill_device_loop();
+  DLL_EXPORT void kill_threads() {
+    should_kill_threads();
   }
 #endif
 

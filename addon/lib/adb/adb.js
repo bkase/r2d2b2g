@@ -240,15 +240,17 @@ exports = module.exports = {
     deviceTracker.stop();
     debug("After stopTrackingDevices");
 
-    if (context.outputThread) {
+    if (context.outputThread && platform != "winnt") {
       debug("Terminating outputThread");
       context.outputThread.terminate();
       blockingNative.killIOPump(context.t_ptrS);
     }
 
-    // this might take 100ms on OSX...
-    blockingNative.killDeviceLoop();
-    debug("killDevAck received");
+    // Windows: kills device loop, output thread, input thread (up to 100ms)
+    // OSX: kills device loop (returns immediately might take 100ms to finish)
+    // Linux: kills nothing
+    blockingNative.killNativeSafely();
+    debug("killAck received");
     // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
     let res = blockingNative.writeFully(server_die_fd, "ctypes.int(0xDEAD)", 4);
     debug("Finished writing to die_fd ret=" + JSON.stringify(res));
@@ -285,6 +287,7 @@ function reset() {
 }
 
 exports.restart = function restart() {
+  debug("ADB wants to restart");
   exports.close();
 
   if (!hasRestarted) {

@@ -54,6 +54,7 @@ FILE* LOG_FILE;
 #define D printf
 
 THREAD_LOCAL void (*restart_me)();
+THREAD_LOCAL int (*getLastError)();
 int HOST = 0;
 int gListenAll = 0;
 
@@ -175,6 +176,10 @@ void cleanup_all() {
 
 void install_thread_locals_(void (*restart_me_)()) {
   restart_me = restart_me_;
+}
+
+void install_getLastError_(int (*getLastError_)()) {
+  getLastError = getLastError_;
 }
 
 void fatal(const char *fmt, ...)

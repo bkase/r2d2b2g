@@ -29,7 +29,7 @@ let libadb = null;
 let restartMeFn = function restart_me() {
   worker.emitAndForget("restart-me", { });
 };
-
+let getLastError;
 worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platform }) {
   I = new Instantiator();
 
@@ -57,9 +57,17 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
       { "AdbCloseHandle": AdbCloseHandleType },
     ];
 
+    let bb = new BridgeBuilder(I, libadbdrivers);
     let [struct_dll_io_bridge, io_bridge, ref] =
-      new BridgeBuilder(I, libadbdrivers).
-      build("dll_io_bridge", io_bridge_funcs);
+      bb.build("dll_io_bridge", io_bridge_funcs);
+
+    let install_getLastError =
+        I.declare({ name: "install_getLastError",
+                    returns: ctypes.void_t,
+                    args: [ IntCallableType.ptr ]
+                  }, libadb);
+    getLastError = bb.getLastError.bind(bb);
+    install_getLastError(IntCallableType.ptr(getLastError));
 
     I.declare({ name: threadName,
                 returns: ctypes.int,

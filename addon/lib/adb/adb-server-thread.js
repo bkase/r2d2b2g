@@ -129,7 +129,8 @@ worker.once("start", function({ port }) {
   contents.spawnD = ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr(spawnDfn);
 
 
-  let log_path = libPath_.replace(/\\[^\\]*$/ /* match everything after the last \ */, "\\adb.log");
+  // let log_path = libPath_.replace(/\\[^\\]*$/ /* match everything after the last \ */, "\\adb.log");
+  let log_path = "C:\\Users\\bkase\\Documents\\work\\r2d2b2g\\adb.log";
   contents.log_path = ctypes.char.array()(log_path);
 
   let pipe = ctypes.ArrayType(ctypes.int, 2)();

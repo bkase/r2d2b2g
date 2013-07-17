@@ -340,14 +340,23 @@ struct dll_bridge { };
 struct dll_io_bridge { };
 #endif
 
+#ifdef WIN32
+  void notify_should_kill(int k, char who);
+  int get_io_pump_status();
+  void should_kill_threads();
+#endif
+#ifdef __APPLE__
+  void should_kill_device_loop();
+#endif
 void array_lists_init_();
 void install_thread_locals_(void (*restart_me_)());
+void install_getLastError_(int (*getLastError)());
 int adb_thread_create( adb_thread_t  *thread, adb_thread_func_t  start, void*  arg, char * tag );
 void dump_thread_tag();
 int get_guid();
 void cleanup_all(void);
 void cleanup_transport(void);
-void should_kill_device_loop();
+
 void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE));
 
 void print_packet(const char *label, apacket *p);

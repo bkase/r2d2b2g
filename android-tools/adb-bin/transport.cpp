@@ -45,6 +45,7 @@ struct dll_io_bridge * i_bridge;
 struct dll_io_bridge * o_bridge;
 
 ADB_MUTEX_DEFINE( transport_lock );
+ADB_MUTEX_DEFINE( io_pump_status_lock );
 //#define ADB_TRACE_FORCE 1
 
 #if ADB_TRACE_FORCE
@@ -311,6 +312,21 @@ void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
     handle_output_oops(t, close_handle_func);
 }
 
+static int io_pump_status;
+// io_pump_status is 1 for on, 0 for off
+int get_io_pump_status() {
+  adb_mutex_lock( &io_pump_status_lock );
+  int tmp = io_pump_status;
+  adb_mutex_unlock( &io_pump_status_lock );
+  return tmp;
+}
+
+static void set_io_pump_status(int status) {
+  adb_mutex_lock( &io_pump_status_lock );
+  io_pump_status = status;
+  adb_mutex_unlock( &io_pump_status_lock );
+}
+
 // TODO: Unplug -> Replug -> Unplug confuses the devices list
 // ONLY ON OSX
 
@@ -328,6 +344,7 @@ void kill_io_pump(atransport * t, bool (*close_handle_func)(ADBAPIHANDLE)){
 */
 void *output_thread(void *_t, struct dll_io_bridge * _io_bridge)
 {
+    set_io_pump_status(1);
     // TODO: This will only work in the case where there is only one device connected for now
     // TODO: Locks?
     started_output_cleanup = 0; 
@@ -448,6 +465,10 @@ void *input_thread(void *_t, struct dll_io_bridge * _io_bridge)
 	D("Post-kick transport input-thread\n");
     transport_unref(t);
 	D("Post-unref transport input-thread\n");
+#ifdef WIN32
+    notify_should_kill(-1, 'I');
+    set_io_pump_status(0);
+#endif
     return 0;
 }
 
