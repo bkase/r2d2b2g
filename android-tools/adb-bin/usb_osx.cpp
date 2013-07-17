@@ -49,7 +49,7 @@ static CFRunLoopRef currentRunLoop = 0;
 static pthread_mutex_t start_lock;
 static pthread_cond_t start_cond;
 
-static pthread_mutex_t should_kill_lock;
+ADB_MUTEX_DEFINE( should_kill_lock );
 
 static void AndroidInterfaceAdded(void *refCon, io_iterator_t iterator);
 static void AndroidInterfaceNotify(void *refCon, io_iterator_t iterator,
