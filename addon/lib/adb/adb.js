@@ -294,6 +294,14 @@ exports.restart = function restart() {
 
   if (!hasRestarted) {
     debug("ADB is restarting");
+    // This timeout is temporarily here because native code routines need a
+    // bit of extra time to close since they do not close fully synchronously.
+    // More exploration is needed before this is resolved, but here is a general
+    // overview of what might be going on:
+    // Two of the threads in the native code are killed via I/O to a native
+    // file descriptor sometime during the execution of the close method. One or
+    // both of these threads does other things that make it not close
+    // immediately after the native file descriptor write returns
     timers.setTimeout(function timeout() {
       reset();
       hasRestarted = true;
