@@ -122,22 +122,16 @@ exports["test c adb push, no phone"] = function (assert, done) {
   }
 
   let str = "astring" + Math.random();
-  let filename = "test.txt";
-  let pathToFile = File.join(TEMP_DIR, filename);
-  let writer = File.open(pathToFile, "w");
-  writer.write(str);
-  writer.close();
+  let pathToFile = require("sdk/test/tmp-file").createFromString(str);
 
   ADB.pushFile(pathToFile,
                "/sdcard/test.txt").then(
     function success(e) {
       assert.fail("Should reject promise when phone unplugged");
-      File.remove(pathToFile);
       done();
     },
     function fail(e) {
       assert.ok(e, ADB.DEVICE_NOT_CONNECTED, "Error wasn't DEVICE_NOT_CONNECTED");
-      File.remove(pathToFile);
       done();
     });
 };
@@ -170,11 +164,7 @@ exports["test e adb push, with phone"] = function (assert, done) {
   }
 
   let str = "astring" + Math.random();
-  let filename = "test.txt";
-  let pathToFile = File.join(TEMP_DIR, filename);
-  let writer = File.open(pathToFile, "w");
-  writer.write(str);
-  writer.close();
+  let pathToFile = require("sdk/test/tmp-file").createFromString(str);
 
   ADB.pushFile(pathToFile,
                "/sdcard/test.txt").then(
@@ -182,19 +172,16 @@ exports["test e adb push, with phone"] = function (assert, done) {
       ADB.shell("cat /sdcard/test.txt").then(
         function success(e) {
           assert.equal(e, str, "Contents of file on host: " + e + " should be same on device: " + str);
-          File.remove(pathToFile);
           done();
         },
         function fail(e) {
           console.log("Error: " + e);
           assert.fail("Error catting");
-          File.remove(pathToFile);
           done();
         });
     },
     function fail(e) {
       assert.fail("Error pushing: " + e);
-      File.remove(pathToFile);
       done();
     });
 };
