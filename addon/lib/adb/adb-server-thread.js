@@ -65,7 +65,7 @@ worker.once("init", function({ libPath }) {
   install_thread_locals(CallbackType.ptr(restartMeFn));
 });
 
-worker.once("start", function({ port }) {
+worker.once("start", function({ port, log_path }) {
   //let main = I.use("adb_main");
   let main = I.use("main_server");
 
@@ -128,9 +128,6 @@ worker.once("start", function({ port }) {
 
   contents.spawnD = ctypes.FunctionType(ctypes.default_abi, ctypes.int).ptr(spawnDfn);
 
-
-  // let log_path = libPath_.replace(/\\[^\\]*$/ /* match everything after the last \ */, "\\adb.log");
-  let log_path = "C:\\Users\\bkase\\Documents\\work\\r2d2b2g\\adb.log";
   contents.log_path = ctypes.char.array()(log_path);
 
   let pipe = ctypes.ArrayType(ctypes.int, 2)();

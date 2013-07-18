@@ -30,7 +30,9 @@ const blockingNative = require("adb/adb-blocking-native");
 const timers = require("timers");
 const URL = require("url");
 const env = require("api-utils/environment").env;
-const file = require("file");
+const File = require("file");
+const TmpD = require("sdk/system").pathFor("TmpD");
+
 const subprocess = require("subprocess");
 const self = require("self");
 const { platform } = require("system");
@@ -149,8 +151,8 @@ exports = module.exports = {
       let paths = env.PATH.split(':');
       let len = paths.length;
       for (let i = 0; i < len; i++) {
-        let fullyQualified = file.join(paths[i], psCommand);
-        if (file.exists(fullyQualified)) {
+        let fullyQualified = File.join(paths[i], psCommand);
+        if (File.exists(fullyQualified)) {
           ps = fullyQualified;
           break;
         }
@@ -320,7 +322,7 @@ exports._startAdbInBackground = function startAdbInBackground() {
   utilWorker = new EventedChromeWorker(WORKER_URL_UTIL, "util_thread", context);
 
   serverWorker.emit("init", { libPath: libPath }, function initack() {
-    serverWorker.emit("start", { port: 5037 }, function started(res) {
+    serverWorker.emit("start", { port: 5037, log_path: File.join(TmpD, "adb.log") }, function started(res) {
       debug("Started adb: " + res.result);
     });
   });
