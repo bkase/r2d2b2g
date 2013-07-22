@@ -20,10 +20,6 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
-function debug() {
-  console.log.apply(console, ["AdbIOThreadSpawner: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 let I = null;
 let libadb = null;
 let restartMeFn = function restart_me() {
@@ -34,7 +30,6 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
   I = new Instantiator();
 
   let t_ptr = unpackPtr(t_ptrS, atransport.ptr);
-  debug("unpacked ptr: " + t_ptrS);
 
   libadb = ctypes.open(libPath);
 
@@ -74,7 +69,7 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
                 args: [ atransport.ptr, struct_dll_io_bridge.ptr ]
               }, libadb);
 
-    debug("Spawning: " + threadName);
+    console.debug("Spawning: " + threadName);
     let spawn = I.use(threadName);
 
     return spawn.apply( spawn, [ t_ptr, io_bridge.address() ] );
@@ -84,7 +79,7 @@ worker.once("init", function({ libPath, driversPath, threadName, t_ptrS, platfor
                 args: [ atransport.ptr ]
               }, libadb);
 
-    debug("Spawning: " + threadName);
+    console.debug("Spawning: " + threadName);
     let spawn = I.use(threadName);
 
     return spawn.apply( spawn, [ t_ptr ] );

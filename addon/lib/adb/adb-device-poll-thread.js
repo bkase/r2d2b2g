@@ -20,10 +20,6 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
-function debug() {
-  console.log.apply(console, ["AdbDevicePollThread: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 const I = new Instantiator;
 let libadb = null;
 let restartMeFn = function restart_me() {
@@ -51,11 +47,10 @@ worker.once("init", function({ libPath, driversPath, platform }) {
               }, libadb);
 
     I.use("usb_monitor")(NULL);
-    debug("usb_monitor returned!");
+    console.debug("usb_monitor returned!");
   } else if (platform === "winnt") {
-    debug("In platform: winnt");
     const libadbdrivers = ctypes.open(driversPath);
-    debug("opened libadbdrivers");
+    console.debug("opened libadbdrivers");
 
     const bridge_funcs = [
         { "AdbEnumInterfaces": AdbEnumInterfacesType },
@@ -95,5 +90,5 @@ worker.once("init", function({ libPath, driversPath, platform }) {
   if (libadb) {
     libadb.close();
   }
-  debug("Cleaned up");
+  console.debug("Cleaned up device-poll-thread");
 });

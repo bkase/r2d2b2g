@@ -83,15 +83,11 @@ let didRunInitially = false;
 const psRegexNix = /.*? \d+ .*? .*? \d+\s+\d+ .*? .*? .*? .*? adb .*fork\-server/;
 const psRegexWin = /adb.exe.*/;
 
-function debug() {
-  console.log.apply(console, ["AdbPure: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 function queryService(service, deferred) {
   let result = "";
   utilWorker.emit("query", { service: service }, function({ fd }) {
     if (fd < 0) {
-      debug("Error: fd is " + fd);
+      console.error("Bad fd: " + fd);
       deferred.reject("Bad file descriptor");
       return;
     }
@@ -125,11 +121,11 @@ exports = module.exports = {
       (function onSuccess(isAdbRunning) {
         if (isAdbRunning) {
           this.didRunInitially = false;
-          debug("Found ADB process running, not restarting");
+          console.log("Found ADB process running, not starting up");
           onSuccessfulStart();
           return;
         }
-        debug("Didn't find ADB process running, restarting");
+        console.log("Didn't find ADB process running, starting up");
 
         let startedSuccessfully = this._startAdbInBackground();
         this.didRunInitially = startedSuccessfully;
@@ -158,7 +154,7 @@ exports = module.exports = {
         }
       }
       if (!ps) {
-        debug("Error: a task list executable not found on filesystem");
+        console.warn("a task list executable not found on filesystem");
         deferred.resolve(false); // default to restart adb
         return deferred.promise;
       }
@@ -217,7 +213,7 @@ exports = module.exports = {
       return deferred.promise;
     }
 
-    debug("Executing: " + shellCommand);
+    console.debug("Executing: adb " + shellCommand);
 
     let service = "shell:" + shellCommand;
 
@@ -227,7 +223,7 @@ exports = module.exports = {
   },
 
   listDevices: function listDevices() {
-    debug("Listing devices");
+    console.debug("Listing adb devices");
     return commandRunner.devices();
   },
 
@@ -237,13 +233,13 @@ exports = module.exports = {
     }
     hasStartedShutdown = true;
     let t0 = Date.now();
-    debug("Closing - ");
+    console.log("Closing ADB");
     let x = 1;
     deviceTracker.stop();
-    debug("After stopTrackingDevices");
+    console.debug("After stopTrackingDevices");
 
     if (context.outputThread && platform != "winnt") {
-      debug("Terminating outputThread");
+      console.debug("Terminating outputThread");
       context.outputThread.terminate();
       blockingNative.killIOPump(context.t_ptrS);
     }
@@ -252,20 +248,20 @@ exports = module.exports = {
     // OSX: kills device loop (returns immediately might take 100ms to finish)
     // Linux: kills nothing
     blockingNative.killNativeSafely();
-    debug("killAck received");
+    console.debug("killAck received");
     // this ioWorker writes to the die_fd which wakes of the fdevent_loop which will then die and return to JS
     let res = blockingNative.writeFully(server_die_fd, "ctypes.int(0xDEAD)", 4);
-    debug("Finished writing to die_fd ret=" + JSON.stringify(res));
+    console.debug("Finished writing to die_fd ret=" + JSON.stringify(res));
     blockingNative.waitForServerDeath();
-    debug("Done waiting for server death");
+    console.debug("Done waiting for server death");
     blockingNative.cleanupNativeCode();
     context.__workers.forEach(function(w) {
-      debug("Killing Worker: " + w.tag)
+      console.debug("Killing Worker: " + w.tag)
       w.terminate();
     });
-    debug("ALL workers are terminated");
+    console.debug("ALL workers are terminated");
     let t1 = Date.now();
-    debug("Closing took: " + (t1 - t0) + "ms");
+    console.log("ADB closed in " + (t1 - t0) + "ms");
   }
 };
 
@@ -289,7 +285,7 @@ function reset() {
 }
 
 exports.restart = function restart() {
-  debug("ADB wants to restart");
+  console.debug("ADB wants to restart");
   exports.close();
 
   if (!hasRestarted) {
@@ -308,7 +304,7 @@ exports.restart = function restart() {
       exports._startAdbInBackground();
     }, 200);
   } else {
-    console.log("ADB fatally died!");
+    console.error("ADB fatally died!");
     Services.obs.notifyObservers(null, "adb-fatal-death", null);
   }
 };
@@ -331,7 +327,7 @@ exports._startAdbInBackground = function startAdbInBackground() {
 
   serverWorker.emit("init", { libPath: libPath }, function initack() {
     serverWorker.emit("start", { port: 5037, log_path: File.join(TmpD, "adb.log") }, function started(res) {
-      debug("Started adb: " + res.result);
+      console.debug("adb server thread returned: " + res.result);
     });
   });
 
@@ -346,7 +342,7 @@ exports._startAdbInBackground = function startAdbInBackground() {
     w.emit("init", { libPath: libPath,
                      driversPath: context.driversPath,
                      platform: context.platform }, function initack() {
-      debug("Inited worker");
+      console.debug("Inited worker");
     });
   });
 

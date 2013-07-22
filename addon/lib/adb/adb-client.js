@@ -17,7 +17,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 let { TextEncoder, TextDecoder } = Cu.import("resource://gre/modules/Services.jsm");
 
 function debug() {
-  console.log.apply(console, ["AdbClient: "].concat(Array.prototype.slice.call(arguments, 0)));
+  console.debug.apply(console, ["ADB: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
 const OLD_SOCKET_API =

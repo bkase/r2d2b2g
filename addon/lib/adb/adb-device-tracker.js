@@ -18,7 +18,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 let { TextDecoder } = Cu.import("resource://gre/modules/Services.jsm");
 
 function debug() {
-  console.log.apply(console, ["AdbDeviceTracker: "].concat(Array.prototype.slice.call(arguments, 0)));
+  console.debug.apply(console, ["ADB: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
 let waitForFirst = true;

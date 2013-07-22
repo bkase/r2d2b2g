@@ -16,7 +16,7 @@ const { Class } = require("sdk/core/heritage");
 const client = require("adb/adb-client");
 
 function debug() {
-  console.log.apply(console, ["AdbCommandRunner: "].concat(Array.prototype.slice.call(arguments, 0)));
+  console.debug.apply(console, ["ADB: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
 function runCommand(aCommand) {

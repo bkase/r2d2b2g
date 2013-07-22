@@ -13,10 +13,6 @@
 
 ;(function(exports) {
 
-  function debug() {
-    console.log.apply(console, ["EventedChromeWorker: "].concat(Array.prototype.slice.call(arguments, 0)));
-  }
-
   let defer, ChromeWorker;
   if (typeof module !== 'undefined') {
     ChromeWorker = require('chrome').ChromeWorker;
@@ -75,8 +71,8 @@
 
     // magic (the other half of runOnPeerThread)
     this._taskIdx = this.listenAndForget("_task", (function({ task, args }) {
-      debug("taskFn: (" + task + ")");
-      debug("args: " + args + ", " + typeof(args) );
+      console.debug("Calling taskFn: (" + task + ")");
+      console.debug("with args: " + args);
       let ja = JSON.parse(args);
       let taskFn = eval("(" + task + ")");
       return taskFn.apply(this, ja);
@@ -88,7 +84,8 @@
       this.runOnPeerThread(function() {
         // start a log listener
         this._logIdx = this.listen("log", function log(args) {
-          console.log.apply(console, ["Thread: "].concat(Array.prototype.slice.call(args, 0)));
+          let channel = args.shift();
+          console[channel].apply(console, Array.prototype.slice.call(args, 0));
         });
         // add ourselves to __workers (to be terminated later)
         this.context.__workers.push(this);

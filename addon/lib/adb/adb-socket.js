@@ -20,7 +20,7 @@ let TCPSocket = Cc["@mozilla.org/tcp-socket;1"]
                 .createInstance(Ci.nsIDOMTCPSocket);
 
 function debug() {
-  console.log.apply(console, ["AdbSocket: "].concat(Array.prototype.slice.call(arguments, 0)));
+  console.debug.apply(console, ["ADB: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
 // Creates a socket connected to the adb instance.

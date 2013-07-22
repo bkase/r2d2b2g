@@ -19,10 +19,6 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, IOUTILS_
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
-function debug() {
-  console.log.apply(console, ["AdbIOThread: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 let I = null;
 let libadb = null;
 let io;
@@ -57,7 +53,7 @@ worker.listen("writeFully", function({ fd, toWriteS, length }) {
 });
 
 worker.listen("cleanup", function() {
-  debug("IO: Cleaning up");
+  console.debug("IO: Cleaning up");
   if (libadb) {
     libadb.close();
     libadb = null;

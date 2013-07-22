@@ -13,10 +13,6 @@ const { unpackPtr, atransport, AdbCloseHandleType, NULL, CallbackType } =
     require("adb/adb-types");
 const { ioUtils } = require("adb/io-utils");
 
-function debug() {
-  console.log.apply(console, ["AdbBlockingNative: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 const I = new Instantiator();
 let libadb, libadbdrivers;
 let io;
@@ -63,7 +59,7 @@ module.exports = {
   },
 
   cleanupNativeCode: function cleanupNativeCode() {
-    debug("Cleaning up native code");
+    console.debug("Cleaning up native code");
     I.use("cleanup")();
     libadb.close();
     if (platform === "winnt") {

@@ -18,7 +18,7 @@ let { TextEncoder, TextDecoder } = Cu.import("resource://gre/modules/Services.js
 /* const OS = */ Cu.import("resource://gre/modules/osfile.jsm");
 
 function debug() {
-  console.log.apply(console, ["AdbFileTransfer: "].concat(Array.prototype.slice.call(arguments, 0)));
+  console.debug.apply(console, ["ADB: "].concat(Array.prototype.slice.call(arguments, 0)));
 }
 
 // pushes a file to the device.

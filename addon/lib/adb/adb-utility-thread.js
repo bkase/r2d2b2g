@@ -16,10 +16,6 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null, false);
 const console = new Console(worker);
 
-function debug() {
-  console.log.apply(console, ["AdbUtilityThread: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 let I = null;
 let libadb = null;
 let platform_ = null;
@@ -49,10 +45,10 @@ worker.listen("init", function({ libPath, driversPath, platform }) {
 });
 
 worker.listen("query", function({ service }) {
-  debug("got query: " + service);
+  console.debug("got query: " + service);
   let connect = I.use("connect_service");
   let fd = connect(service);
-  debug("Query returned: " + fd);
+  console.debug("Query returned: " + fd);
   return { fd: fd };
 });
 

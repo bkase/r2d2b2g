@@ -19,10 +19,6 @@ importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPE
 const worker = new EventedChromeWorker(null);
 const console = new Console(worker);
 
-function debug() {
-  console.log.apply(console, ["AdbServerThread: "].concat(Array.prototype.slice.call(arguments, 0)));
-}
-
 let I = null;
 let libadb = null;
 let libPath_;
@@ -85,9 +81,8 @@ worker.once("start", function({ port, log_path }) {
     ctypes.FunctionType(ctypes.default_abi, ctypes.void_t, []).ptr(onTrackReadyfn);
 
   let spawnIOfn = function spawnIO(t_ptr) {
-    debug("spawnIO was called from C, with voidPtr: " + t_ptr.toString());
+    console.debug("spawnIO was called from C, with voidPtr: " + t_ptr.toString());
     let t_ptrS = packPtr(t_ptr);
-    debug("packed ptr: " + t_ptrS);
     worker.runOnPeerThread(function spawnIO_task(t_ptrS, workerURI) {
       let inputThread = this.newWorker(workerURI, "input_thread");
       inputThread.emitAndForget("init",
@@ -118,7 +113,7 @@ worker.once("start", function({ port, log_path }) {
 
   // NOTE: on linux this will not be called
   let spawnDfn = function() {
-    debug("spawnD was actually called from C!!!");
+    console.debug("spawnD called from C");
     worker.runOnPeerThread(function spawnD_task(workerURI) {
       let devicePollWorker = this.newWorker(workerURI, "device_poll_thread");
       devicePollWorker.emitAndForget("init", { libPath: context.libPath, driversPath: context.driversPath, platform: context.platform });
@@ -138,12 +133,11 @@ worker.once("start", function({ port, log_path }) {
   let input = struct_adb_main_input(contents);
   // NOTE: this will loop forever (until signal-ed)
   let x = main(input.address());
-  debug("Main returned; " + x);
   return { ret: x };
 });
 
 worker.listen("cleanup", function() {
-  debug("Cleaning up");
+  console.debug("Cleaning up server-thread");
   if (libadb) {
     libadb.close();
   }

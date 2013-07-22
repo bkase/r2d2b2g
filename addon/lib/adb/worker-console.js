@@ -10,9 +10,12 @@
   function Console(worker) {
     this._worker = worker;
   }
-  Console.prototype.log = function() {
-    this._worker.emitAndForget("log", Array.prototype.slice.call(arguments, 0));
-  };
+
+  ["debug", "log", "warn", "error"].forEach(function eachChannel(channel) {
+    Console.prototype[channel] = function() {
+      this._worker.emitAndForget("log", [channel].concat(Array.prototype.slice.call(arguments, 0)));
+    };
+  });
 
   exports.Console = Console;
 }).apply(null,
