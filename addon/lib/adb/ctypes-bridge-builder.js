@@ -36,6 +36,7 @@
           o[k] = obj[k].ptr;
           return o;
         }
+        return null; // to get rid of func not returning value warning
       });
       const struct_bridge =
         new ctypes.StructType(name, bridge_body);
@@ -66,6 +67,7 @@
           // install this callback in the bridge struct
           bridge[k] = bridge_funcs[i][k].ptr(ref[k]);
         }
+        return null; // to get rid of func not returning value warning
       }).bind(this));
       
       return [bridge, ref];
