@@ -49,12 +49,13 @@ FILE* debugLog;
 FILE* LOG_FILE;
 #endif
 
-//#define D_ D
-//#undef D
-//#define D printf
+#define D_ D
+#undef D
+#define D printf
 
 THREAD_LOCAL void (*restart_me)();
 THREAD_LOCAL int (*getLastError)();
+THREAD_LOCAL void * (*js_msg)(char *, void *);
 int HOST = 0;
 int gListenAll = 0;
 
@@ -176,6 +177,15 @@ void cleanup_all() {
 
 void install_thread_locals_(void (*restart_me_)()) {
   restart_me = restart_me_;
+}
+
+void install_js_msg_(void *(js_msg_)(char *, void *)) {
+  js_msg = js_msg_;
+  void ** res;
+  MSG(&res, "test1", int, 10, char *, "hello", int, 27);
+  D("js_msg returned: %d\n", *(int*)(res));
+  MSG(&res, "test2", int, 11, double, 2.5);
+  D("js_msg returned: %d\n", *(int*)(res));
 }
 
 void install_getLastError_(int (*getLastError_)()) {
@@ -1639,5 +1649,5 @@ int main(int argc, char **argv)
 }
 
 
-//#undef D
-//#define D D_
+#undef D
+#define D D_
