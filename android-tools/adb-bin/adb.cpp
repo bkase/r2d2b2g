@@ -181,11 +181,12 @@ void install_thread_locals_(void (*restart_me_)()) {
 
 void install_js_msg_(void *(js_msg_)(char *, void *)) {
   js_msg = js_msg_;
-  void ** res;
+  void * res;
+  D("Installed and about to call MSG\n");
   MSG(&res, "test1", int, 10, char *, "hello", int, 27);
-  D("js_msg returned: %d\n", *(int*)(res));
+  D("js_msg returned: %d\n", (int)(res));
   MSG(&res, "test2", int, 11, double, 2.5);
-  D("js_msg returned: %d\n", *(int*)(res));
+  D("js_msg returned: %d\n", (int)(res));
 }
 
 void install_getLastError_(int (*getLastError_)()) {

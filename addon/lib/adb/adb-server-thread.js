@@ -15,7 +15,11 @@ const JS_MESSAGE = URL_PREFIX + "js-message.js";
 const WORKER_URL_IO_THREAD_SPAWNER = URL_PREFIX + "adb-io-thread-spawner.js";
 const WORKER_URL_DEVICE_POLL = URL_PREFIX + "adb-device-poll-thread.js";
 
-importScripts(INSTANTIATOR_URL, EVENTED_CHROME_WORKER_URL, CONSOLE_URL, ADB_TYPES, JS_MESSAGE);
+importScripts(INSTANTIATOR_URL,
+              EVENTED_CHROME_WORKER_URL,
+              CONSOLE_URL,
+              ADB_TYPES,
+              JS_MESSAGE);
 
 const worker = new EventedChromeWorker(null);
 const console = new Console(worker);
@@ -42,8 +46,8 @@ let jsMsgFn = function js_msg(channel, args) {
       console.log("Unknown message");
   }
 
-  w = ctypes.int(10);
-  return w.address();
+  w = ctypes.uint64_t("10");
+  return ctypes.cast(w, ctypes.uint64_t.ptr);
 };
 
 worker.once("init", function({ libPath }) {
