@@ -183,9 +183,26 @@ void install_js_msg_(void *(js_msg_)(char *, void *)) {
   js_msg = js_msg_;
   void * res;
   D("Installed and about to call MSG\n");
-  MSG(&res, "test1", int, 10, char *, "hello", int, 27);
+  struct test1_msg {
+    int a;
+    char * b;
+    int c;
+  };
+  struct test1_msg m;
+  m.a = 10;
+  m.b = "hello";
+  m.c = 27;
+  MSG(&res, "test1", m);
   D("js_msg returned: %d\n", (int)(res));
-  MSG(&res, "test2", int, 11, double, 2.5);
+
+  struct test2_msg {
+    int a;
+    double b;
+  };
+  struct test2_msg m2;
+  m2.a = 11;
+  m2.b = 2.5;
+  MSG(&res, "test2", m2);
   D("js_msg returned: %d\n", (int)(res));
 }
 
