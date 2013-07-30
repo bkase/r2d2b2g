@@ -49,9 +49,9 @@ FILE* debugLog;
 FILE* LOG_FILE;
 #endif
 
-#define D_ D
-#undef D
-#define D printf
+//#define D_ D
+//#undef D
+//#define D printf
 
 THREAD_LOCAL void (*restart_me)();
 THREAD_LOCAL int (*getLastError)();
@@ -181,24 +181,6 @@ void install_thread_locals_(void (*restart_me_)()) {
 
 void install_js_msg_(void *(js_msg_)(char *, void *)) {
   js_msg = js_msg_;
-  void * res;
-  D("Installed and about to call MSG\n");
-  struct test1_msg {
-    int a;
-    char * b;
-    int c;
-  };
-  struct test1_msg m = { 10, "hello", 27 };
-  MSG(&res, "test1", m);
-  D("js_msg returned: %d\n", (int)(res));
-
-  struct test2_msg {
-    int a;
-    double b;
-  };
-  struct test2_msg m2 = { 11, 2.5 };
-  MSG(&res, "test2", m2);
-  D("js_msg returned: %d\n", (int)(res));
 }
 
 void install_getLastError_(int (*getLastError_)()) {
@@ -1661,6 +1643,5 @@ int main(int argc, char **argv)
     return 0;
 }
 
-
-#undef D
-#define D D_
+//#undef D
+//#define D D_
