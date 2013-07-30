@@ -22,14 +22,9 @@
   }
 
   JsMessage.prototype = {
-    _zipWithIndex: function zipWithIndex(a) {
-      let i = 0;
-      return a.map(function(x) [x, i++]);
-    },
-
     unravel: function unravel(/* types */) {
-      let types = Array.prototype.slice.call(arguments);
-      let struct_body = this._zipWithIndex(types).map(function ([type, i]) {
+      let types = Array.slice(arguments);
+      let struct_body = types.map(function (type, i) {
         let o = {};
         o["s_" + i] = type;
         return o;
@@ -39,8 +34,7 @@
         new ctypes.StructType("anon", struct_body);
 
       let as_struct_type = ctypes.cast(this.struct_ptr, struct_type.ptr);
-      return this._zipWithIndex(types)
-          .map(function([,i]) as_struct_type.contents["s_" + i]);
+      return types.map(function(unused, i) as_struct_type.contents["s_" + i]);
     }
   };
 
