@@ -1,6 +1,13 @@
 #include "js_message.h"
 
+#ifdef __cplusplus
+  #define EXTERN_C extern "C"
+#else
+  #define EXTERN_C
+#endif
+
 #ifdef _WIN32
+#include <Windows.h>
 #define DLL_EXPORT EXTERN_C _declspec(dllexport)
 #define THREAD_LOCAL _declspec(thread)
 #else

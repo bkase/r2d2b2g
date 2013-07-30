@@ -119,4 +119,4 @@ winlibadb:
 	echo make-win.bat | cmd $(VS_DEVELOPER_CMD_PATH)
 
 wintestlib: $(TESTOBJS)
-	echo "cl.exe test-js-message.c /link /DLL /OUT:libtest.dll" | cmd $(VS_DEVELOPER_CMD_PATH)
+	echo "cl.exe test-js-message.c /link /DLL /OUT:..\\win-out\\libtest.dll" | cmd $(VS_DEVELOPER_CMD_PATH)
