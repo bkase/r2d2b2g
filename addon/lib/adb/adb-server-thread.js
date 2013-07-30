@@ -46,8 +46,8 @@ let jsMsgFn = function js_msg(channel, args) {
       console.log("Unknown message");
   }
 
-  w = ctypes.uint64_t("10");
-  return ctypes.cast(w, ctypes.uint64_t.ptr);
+  w = ctypes.uintptr_t(10);
+  return ctypes.cast(w, ctypes.uintptr_t.ptr);
 };
 
 worker.once("init", function({ libPath }) {
