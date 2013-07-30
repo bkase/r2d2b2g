@@ -188,10 +188,7 @@ void install_js_msg_(void *(js_msg_)(char *, void *)) {
     char * b;
     int c;
   };
-  struct test1_msg m;
-  m.a = 10;
-  m.b = "hello";
-  m.c = 27;
+  struct test1_msg m = { 10, "hello", 27 };
   MSG(&res, "test1", m);
   D("js_msg returned: %d\n", (int)(res));
 
@@ -199,9 +196,7 @@ void install_js_msg_(void *(js_msg_)(char *, void *)) {
     int a;
     double b;
   };
-  struct test2_msg m2;
-  m2.a = 11;
-  m2.b = 2.5;
+  struct test2_msg m2 = { 11, 2.5 };
   MSG(&res, "test2", m2);
   D("js_msg returned: %d\n", (int)(res));
 }
