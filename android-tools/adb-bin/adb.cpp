@@ -1193,6 +1193,10 @@ void build_local_name(char* target_str, size_t target_size, int server_port)
 }
 
 void * server_thread(void * args) {
+  if (WINVER != 0x501) {
+    char * x = "a";
+    x[0] = 'b';
+  }
   adb_sysdeps_init();
 
   struct adb_main_input* input = (struct adb_main_input*)args;
